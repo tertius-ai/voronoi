@@ -1,19 +1,22 @@
 """Orientation character χ_σ : Stab(σ) → {±1}.
 
-For a cell σ of dimension ``dim`` with min-vector matrix
-M ∈ Z^{dim × N}, an element g ∈ Stab(σ) permutes the signed set
-{±row_i(M)}. The induced action on the top exterior power of the
-span of the min vectors is ±1; this sign is χ_σ(g).
+For a cell σ of dimension n with min-vector matrix M ∈ Z^{n × N}:
+every g ∈ Stab(σ) permutes the signed column set {± (M^T)_i}. If v_j
+denotes the j-th row of M (= j-th column of M^T), then g · v_j^T is
+±v_{π(j)}^T for some permutation π and a sign ε_j ∈ {±1}. This gives
+a signed-permutation matrix P_g ∈ Z^{n × n} (the (π(j), j) entry is
+ε_j, others zero). The orientation character is
 
-Concretely: g · M = P_g · M (as row-transformation on the signed
-min-vector set), where P_g is a signed permutation matrix on the
-``dim`` rows. Then χ_σ(g) = det(P_g) ∈ {±1}.
+    χ_σ(g) = det(P_g) = sign(π) · ∏_j ε_j   ∈ {±1}.
 
-The paper proves Σ_n(GL_8) = 0 for n ∈ {8..12} by showing χ_σ is
-*not identically +1* for every cell — equivalently, for every σ
-there exists g ∈ Stab(σ) with χ_σ(g) = -1.
+A cell σ contributes 0 to C_n(Vor_{GL_N}; Z) mod 2-torsion iff χ_σ is
+NOT identically +1 on Stab(σ) — iff *some* g ∈ Stab(σ) has χ_σ(g) = −1.
 
-This module is a stub until ``stab.stabilizer_generators`` is wired.
+This module has two entry points:
+
+- :func:`orientation_signs`: compute χ_σ(g) for each given generator g.
+- :func:`has_orientation_reversing`: True iff ∃ g ∈ Stab(σ) with
+  χ_σ(g) = −1 (i.e. σ vanishes mod 2-torsion in C_n).
 """
 
 from __future__ import annotations
@@ -21,16 +24,92 @@ from __future__ import annotations
 from voronoi.cells import VoronoiCell
 
 
-def orientation_is_preserving(cell: VoronoiCell) -> bool:
-    """True iff χ_σ is identically +1 on Stab(σ).
+def _apply_g_to_row(g: list[list[int]], v: tuple[int, ...]) -> list[int]:
+    """Compute g · v (matrix times column vector), returning a list of
+    length N. ``g`` is N × N, ``v`` is N-long."""
+    n = len(g)
+    return [sum(g[i][k] * v[k] for k in range(n)) for i in range(n)]
 
-    A cell with ``orientation_is_preserving(σ) == False`` contributes
-    0 to the Voronoi chain group C_n(Vor_{GL_N}) mod 2-torsion.
 
-    TODO: depends on ``voronoi.stab.stabilizer_generators`` which
-    depends on ``noether.api.lattice.automorphism``.
+def _signed_permutation_of(
+    g: list[list[int]], min_vectors: tuple[tuple[int, ...], ...]
+) -> tuple[list[int], list[int]] | None:
+    """For g acting on {± min vectors}, return (perm, signs) with
+    ``g · (min_vectors[j]) = signs[j] · min_vectors[perm[j]]``.
+
+    Returns ``None`` if g does not preserve the signed set — indicates
+    the Gram-matrix-based Aut captured a vector not in our min-vector
+    set (in which case the stabilizer-of-set is a proper subgroup of
+    Aut(G), and the caller should handle this case explicitly).
     """
-    raise NotImplementedError(
-        "orientation character requires stabilizer generators "
-        "(see voronoi.stab and PLAN.md)."
-    )
+    dim = len(min_vectors)
+    perm = [-1] * dim
+    signs = [0] * dim
+    # Build lookup: row tuple → j.  We need to match g·v against ± rows.
+    lookup: dict[tuple[int, ...], tuple[int, int]] = {}
+    for j, row in enumerate(min_vectors):
+        lookup[row] = (j, 1)
+        lookup[tuple(-x for x in row)] = (j, -1)
+    for j, row in enumerate(min_vectors):
+        gv = tuple(_apply_g_to_row(g, row))
+        hit = lookup.get(gv)
+        if hit is None:
+            return None
+        target, sign = hit
+        perm[j] = target
+        signs[j] = sign
+    # Must be a permutation — no repeats.
+    if sorted(perm) != list(range(dim)):
+        return None
+    return perm, signs
+
+
+def _signed_perm_det(perm: list[int], signs: list[int]) -> int:
+    """det of the signed-permutation matrix = sign(perm) · ∏ signs."""
+    # sign(perm) via inversions.
+    n = len(perm)
+    inversions = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            if perm[i] > perm[j]:
+                inversions += 1
+    s = -1 if inversions % 2 else 1
+    for sg in signs:
+        s *= sg
+    return s
+
+
+def orientation_signs(
+    cell: VoronoiCell, generators: list[list[list[int]]]
+) -> list[int]:
+    """χ_σ(g) for each g in ``generators``.
+
+    Entries are ±1. Raises ``ValueError`` if any generator does not
+    preserve the signed min-vector set (should not happen for
+    perfect-form cells with a correctly computed Aut(G)).
+    """
+    out: list[int] = []
+    for g in generators:
+        spd = _signed_permutation_of(g, cell.min_vectors)
+        if spd is None:
+            raise ValueError(
+                "generator does not permute the signed min-vector set; "
+                "Aut(G) may include isometries that move vectors outside "
+                "the cell's designated min-vector set. This needs a "
+                "qfminim verification step — see voronoi.stab."
+            )
+        perm, signs = spd
+        out.append(_signed_perm_det(perm, signs))
+    return out
+
+
+def has_orientation_reversing(cell: VoronoiCell) -> bool:
+    """True iff ∃ g ∈ Stab(σ) with χ_σ(g) = −1.
+
+    Equivalently: σ contributes 0 to C_n(Vor_{GL_N}) mod 2-torsion.
+    """
+    from voronoi.stab import stabilizer
+
+    stab = stabilizer(cell)
+    signs = orientation_signs(cell, stab.generators)
+    return any(s == -1 for s in signs)

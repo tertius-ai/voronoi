@@ -122,14 +122,31 @@ rather than the voronoi repo:
 
 ## Open questions
 
-1. Performance of `qfauto` on the 50645-orbit N=8 n=12 corpus — is
+1. **Gram matrix for Stab(σ).** For a cell σ with min-vector matrix
+   M, naive ``G = M^T M`` does NOT have {±rows of M} as its shortest
+   vectors, and ``Aut(G) ∩ SetStab(± M)`` is strictly smaller than
+   the true Stab(σ) for lower-dim cells (empirically: some cells at
+   (N=8, n=8) collapse to |Stab| = 2 = {±I} when they clearly have
+   more symmetry from inspection). The actual perfect form ``Q_σ``
+   for the cell's interior is what we need. Reconstructing Q_σ from
+   M is an n(n+1)/2 − N(N+1)/2 underdetermined linear system in
+   general; Plesken-Pohst's classical recipe uses a specific
+   parameterization we haven't implemented yet. **Blocking Layer A
+   orientation tally.**
+2. Performance of `qfauto` on the 50645-orbit N=8 n=12 corpus — is
    PARI fast enough, or do we need a native Plesken-Pohst port?
-2. Does the orientation-reversing argument extend to (N=9, n=12)?
+3. Does the orientation-reversing argument extend to (N=9, n=12)?
    Unknown; tallied cell-by-cell once Layer B lands.
-3. Start of the Voronoi seed for (N=9, n=12): which perfect forms
+4. Start of the Voronoi seed for (N=9, n=12): which perfect forms
    are the natural starting points? (E_8, D_9 relatives, etc.)
-4. Enumeration hardness scaling from (N=8, n=12) [50k orbits] to
+5. Enumeration hardness scaling from (N=8, n=12) [50k orbits] to
    (N=9, n=12) [likely 10^5–10^6]. May need distributed.
+6. **Orientation character convention.** The action of g ∈ Stab on
+   σ's generators {v_i v_i^T} is by **unsigned** permutation
+   (v_i v_i^T = (-v_i)(-v_i)^T), so χ_σ(g) = sign(π) where π is the
+   induced permutation of min-vector pairs. Our `orientation.py`
+   currently computes det of the *signed* permutation. Fix before
+   re-running the tally.
 
 ## References
 

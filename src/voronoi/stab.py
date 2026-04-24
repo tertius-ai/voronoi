@@ -1,11 +1,18 @@
 """Stabilizer Stab(σ) of a Voronoi cell σ in GL_N(Z).
 
-Implementation depends on the libpari FFI binding in noether that
-wraps PARI's ``qfauto``. That binding does not yet exist — see
-PLAN.md's "What graduates to noether" table.
+For a cell σ of dim n given by min-vector matrix M ∈ Z^{n × N}
+(rows = min vectors of a perfect form parameterizing σ), the Gram
+matrix ``G = M^T · M`` on Z^N has the property that
 
-Until then, this module raises ``NotImplementedError`` with a
-pointer to the noether feature to add.
+    {v ∈ Z^N : v^T G v = min(G)} = {± rows of M}
+
+(for perfect-form cells the min-vector set is exactly the generating
+set). Hence
+
+    Stab(σ) = { g ∈ GL_N(Z) : g^T G g = G } = Aut(G) ⊂ GL_N(Z).
+
+We compute Aut(G) via ``noether.api.lattice.automorphism_group``,
+which wraps PARI's Plesken-Pohst qfauto.
 """
 
 from __future__ import annotations
@@ -13,22 +20,30 @@ from __future__ import annotations
 from voronoi.cells import VoronoiCell
 
 
-def stabilizer_generators(cell: VoronoiCell) -> list[list[list[int]]]:
-    """Generators of Stab(σ) ⊂ GL_N(Z), as integer matrices.
+def gram_of_min_vectors(cell: VoronoiCell) -> list[list[int]]:
+    """G = M^T · M  ∈ Z^{N × N} where M has rows = min vectors."""
+    n = cell.lattice_rank
+    g = [[0] * n for _ in range(n)]
+    for row in cell.min_vectors:
+        for i in range(n):
+            v_i = row[i]
+            if v_i == 0:
+                continue
+            for j in range(n):
+                g[i][j] += v_i * row[j]
+    return g
 
-    TODO: implement once ``noether.api.lattice.automorphism`` lands.
-    The algorithm:
 
-    1. Build the min-vector matrix M ∈ Z^{dim × N}.
-    2. Build the Gram matrix G = M · Q · M^T for a canonical Q ∈ σ.
-       (For top-dim cells Q is unique; for lower-dim cells any
-       interior-of-σ Q suffices — the stabilizer is independent of
-       the choice.)
-    3. Call ``noether.api.lattice.automorphism(G)`` which wraps
-       PARI's qfauto and returns generators in GL_N(Z).
-    4. Return them as nested Python lists.
+def stabilizer(cell: VoronoiCell):
+    """Return ``noether.api.lattice.AutomorphismGroup`` of Stab(σ).
+
+    The result's ``order`` is |Stab(σ)|; ``generators`` are n × n
+    integer matrices in GL_N(Z), each satisfying ``g^T G g = G`` and
+    additionally permuting ``{± cell.min_vectors}`` as a set.
     """
-    raise NotImplementedError(
-        "Stab(σ) requires noether.api.lattice.automorphism "
-        "(libpari qfauto binding). See PLAN.md."
+    from noether.api.lattice import automorphism_group
+
+    return automorphism_group(
+        gram_of_min_vectors(cell),
+        min_vectors=[list(v) for v in cell.min_vectors],
     )
