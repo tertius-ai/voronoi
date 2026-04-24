@@ -1,0 +1,20 @@
+{
+  "_note": "Expected Σ_n(GL_8) tallies from arXiv:1910.11598 Prop 1215 + Thm 1371. Reproducibility target for Layer A.",
+  "_reference": "Dutour Sikirić, Elbaz-Vincent, Kupers, Martinet 2019, tableBeyond8",
+  "N": 8,
+  "cell_counts": {
+    "8": 13,
+    "9": 106,
+    "10": 783,
+    "11": 6167,
+    "12": 50645
+  },
+  "orientation_preserving_counts": {
+    "8": 0,
+    "9": 0,
+    "10": 0,
+    "11": 0,
+    "12": 0
+  },
+  "expected_homology_mod_s2": "H_k(Vor_{GL_8}) = 0 for k <= 12 (mod 2-torsion)"
+}

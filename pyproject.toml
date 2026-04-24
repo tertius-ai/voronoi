@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voronoi"
+version = "0.0.1"
+description = "Computational attack on K_12(Z) via Voronoi complexes of GL_N(Z)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # noether is consumed as a local editable dep during development;
+    # see scripts/dev_install.sh.
+]
+
+[project.scripts]
+voronoi = "voronoi.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voronoi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

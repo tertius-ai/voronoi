@@ -1,0 +1,93 @@
+"""Parser for the ``DATA_pari/ListSHV_n{N}_rank{n}`` files published in
+https://github.com/elbazvip/Voronoi-complexes-database.
+
+File format (per file, one cell orbit per line, plus a final summary):
+
+    U1= [[1,0,0,...],[0,1,0,...],...]
+    U2= [[...],[...],...]
+    ...
+    ListSHV_n{N}_rank{n} = [U1,U2,...,Uk]
+
+Each ``Ui`` is an integer matrix, written in GP nested-list syntax.
+The outer list has ``dim`` entries (= cell dimension = ``n`` in the
+filename); each inner list has ``lattice_rank`` entries (= N).
+
+So rows of ``Ui`` are the min vectors of the cell, and there are
+``dim`` of them. We return a list of ``VoronoiCell`` instances.
+"""
+
+from __future__ import annotations
+
+import ast
+import re
+from pathlib import Path
+
+from voronoi.cells import VoronoiCell
+
+_FILENAME_RE = re.compile(r"ListSHV_n(?P<N>\d+)_rank(?P<n>\d+)$")
+_ASSIGN_RE = re.compile(r"^(?P<name>U\d+)\s*=\s*(?P<rhs>.+)$")
+
+
+def _parse_filename(path: Path) -> tuple[int, int]:
+    """Extract (lattice_rank, cell_dim) from a ListSHV filename."""
+    m = _FILENAME_RE.match(path.name)
+    if m is None:
+        raise ValueError(
+            f"{path.name!r} does not match ListSHV_n{{N}}_rank{{n}} pattern"
+        )
+    return int(m["N"]), int(m["n"])
+
+
+def _parse_matrix_literal(text: str) -> list[list[int]]:
+    """Parse a GP nested-list literal ``[[1,2],[3,4]]`` into a Python
+    list-of-lists of ints. GP's list syntax is a strict subset of
+    Python list syntax, so ``ast.literal_eval`` works directly once we
+    strip the trailing semicolon.
+    """
+    text = text.strip().rstrip(";").strip()
+    parsed = ast.literal_eval(text)
+    if not isinstance(parsed, list) or not parsed:
+        raise ValueError(f"expected non-empty nested list, got {type(parsed).__name__}")
+    rows: list[list[int]] = []
+    for i, row in enumerate(parsed):
+        if not isinstance(row, list):
+            raise ValueError(f"row {i} is not a list (got {type(row).__name__})")
+        rows.append([int(x) for x in row])
+    return rows
+
+
+def parse_list_shv_file(path: str | Path) -> list[VoronoiCell]:
+    """Parse a ``ListSHV_n{N}_rank{n}`` file.
+
+    Returns one :class:`VoronoiCell` per ``Ui`` line, in file order.
+    The trailing ``ListSHV_...= [U1,U2,...]`` summary line is ignored
+    (it would require full GP evaluation to dereference the Ui names).
+    """
+    path = Path(path)
+    lattice_rank, cell_dim = _parse_filename(path)
+
+    cells: list[VoronoiCell] = []
+    with path.open() as fh:
+        for lineno, raw in enumerate(fh, start=1):
+            line = raw.strip()
+            if not line or line.startswith("\\\\") or line.startswith("/*"):
+                continue
+            if line.startswith("ListSHV"):
+                # trailing summary line ("ListSHV_n8_rank8 = [U1,U2,...,U13]")
+                break
+            m = _ASSIGN_RE.match(line)
+            if m is None:
+                continue
+            try:
+                rows = _parse_matrix_literal(m["rhs"])
+            except (SyntaxError, ValueError) as exc:
+                raise ValueError(f"{path}:{lineno}: parse error: {exc}") from exc
+            cell = VoronoiCell.from_rows(rows)
+            if cell.lattice_rank != lattice_rank or cell.dim != cell_dim:
+                raise ValueError(
+                    f"{path}:{lineno}: cell shape "
+                    f"({cell.dim}×{cell.lattice_rank}) disagrees with filename "
+                    f"({cell_dim}×{lattice_rank})"
+                )
+            cells.append(cell)
+    return cells
