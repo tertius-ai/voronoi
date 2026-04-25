@@ -58,13 +58,14 @@ def cell_stabilizer(cell: VoronoiCell):
     Gram witness.
 
     **WARNING (OQ1, partially resolved):** PARI's ``qfauto`` with an
-    SHV hint is order-sensitive: passing ``[A_int, M]`` with M's
-    "complex" vector at row 0 returns a strict subgroup of Stab(σ)
-    (e.g., 2 instead of 1440 for cell 6 of (N=8, n=8)). This happens
-    even when M is exactly the min-vector set of A_int. The bug appears
-    to be in PARI's qfauto backtrack and is documented in PARI as
-    "bug in qfisom". For correct Stab(σ) on small cells (n ≤ 8 ish),
-    use :func:`cell_stabilizer_brute_force`.
+    SHV hint expects the SHV list to be **all** vectors of norm
+    ≤ max(diag(G)), not the cell's chosen min vectors. With our cell's
+    M as SHV, PARI's qfisom backtrack starts the pivot search from
+    M[0], giving order-sensitive output: cell 6 of (N=8, n=8) returns
+    |Stab|=2 with M[0]=v_messy versus 1440 with M[7]=v_messy. The
+    correct path is to call ``qfauto(G)`` (no SHV) to get Aut(G), then
+    extract SetStab(±V) ∩ Aut(G) via coset enumeration / Schreier-Sims
+    over the Aut(G) generators. Source: PARI 2.15 ``qfisom.c:197``.
 
     Args:
         cell: a :class:`VoronoiCell`.
