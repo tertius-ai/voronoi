@@ -18,6 +18,12 @@ published orbit database. Status:
     13 cells total (target).
 """
 
-from voronoi.enumerate.watson import enumerate_index_1_cells
+from voronoi.enumerate.watson import (
+    enumerate_index_1_cells,
+    enumerate_index_2_cells,
+)
 
-__all__ = ["enumerate_index_1_cells"]
+__all__ = [
+    "enumerate_index_1_cells",
+    "enumerate_index_2_cells",
+]
