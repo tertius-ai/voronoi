@@ -19,10 +19,12 @@ except ImportError:
 
 from voronoi.cells import VoronoiCell
 from voronoi.enumerate import (
+    enumerate_all_n_eq_N_cells,
     enumerate_index_1_cells,
     enumerate_index_2_cells,
     enumerate_index_3_cells,
     enumerate_index_4_cyclic_cells,
+    enumerate_index_4_klein_cells,
     enumerate_index_5_cells,
 )
 from voronoi.parse import parse_list_shv_file
@@ -286,3 +288,51 @@ def test_d1_through_d5_cover_12_distinct_db_cells() -> None:
         assert len(matches) == 1
         matched_db.add(matches[0])
     assert len(matched_db) == 12
+
+
+@pytest.mark.slow
+def test_index_4_klein_n8_count() -> None:
+    """1 cell per [DSEKM19] Table 2 (weight distribution (5², 6))."""
+    cells = enumerate_index_4_klein_cells(8)
+    assert len(cells) == 1
+
+
+@pytest.mark.slow
+def test_index_4_klein_n8_matches_database() -> None:
+    """The unique d=2² Klein cell should match exactly one database cell."""
+    cells = enumerate_index_4_klein_cells(8)
+    assert len(cells) == 1
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+    matches = [i for i, c in enumerate(db_cells) if _cells_match(cells[0], c)]
+    assert len(matches) == 1
+
+
+@pytest.mark.slow
+def test_full_enumeration_recovers_all_13_db_cells() -> None:
+    """The full Watson enumeration via enumerate_all_n_eq_N_cells(8)
+    must reproduce all 13 (N=8, n=8) cells from the published database.
+
+    THIS IS THE FULL M3 GRADUATION CRITERION."""
+    all_enumerated = enumerate_all_n_eq_N_cells(8)
+    assert len(all_enumerated) == 13, (
+        f"Watson enumeration produced {len(all_enumerated)} cells; "
+        f"DSEKM19 Table 2 says 13"
+    )
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+    assert len(db_cells) == 13
+
+    matched_db: set[int] = set()
+    for enum_cell in all_enumerated:
+        matches = [i for i, c in enumerate(db_cells) if _cells_match(enum_cell, c)]
+        assert len(matches) == 1, f"expected one match, got {matches}"
+        matched_db.add(matches[0])
+    assert matched_db == set(range(13)), (
+        f"enumerated cells map to 13 distinct db orbits; matched={matched_db}"
+    )

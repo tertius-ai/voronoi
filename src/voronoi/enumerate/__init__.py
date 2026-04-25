@@ -23,13 +23,33 @@ from voronoi.enumerate.watson import (
     enumerate_index_2_cells,
     enumerate_index_3_cells,
     enumerate_index_4_cyclic_cells,
+    enumerate_index_4_klein_cells,
     enumerate_index_5_cells,
 )
+
+
+def enumerate_all_n_eq_N_cells(n: int) -> list:
+    """All Watson cells with kissing s = n in dim n. Sum of all index
+    classifications: d=1, d=2, d=3, d=4 cyclic, d=4 Klein, d=5.
+
+    For n=8 this returns 13 cells matching [DSEKM19] Table 2.
+    """
+    return (
+        enumerate_index_1_cells(n)
+        + enumerate_index_2_cells(n)
+        + enumerate_index_3_cells(n)
+        + enumerate_index_4_cyclic_cells(n)
+        + enumerate_index_4_klein_cells(n)
+        + enumerate_index_5_cells(n)
+    )
+
 
 __all__ = [
     "enumerate_index_1_cells",
     "enumerate_index_2_cells",
     "enumerate_index_3_cells",
     "enumerate_index_4_cyclic_cells",
+    "enumerate_index_4_klein_cells",
     "enumerate_index_5_cells",
+    "enumerate_all_n_eq_N_cells",
 ]

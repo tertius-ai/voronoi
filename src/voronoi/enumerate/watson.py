@@ -325,6 +325,145 @@ def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
     return distinct
 
 
+def _watson_min_vectors_d2_klein_canonical(
+    n: int, c1: tuple[int, ...], c2: tuple[int, ...]
+) -> list[list[int]]:
+    """Min-vector matrix for a d=2² Klein cell with binary code generators
+    c1, c2 (both ∈ {0,1}^n). The lattice extension is Λ = Z^n + (c1/2) Z
+    + (c2/2) Z with [Λ:Z^n] = 4 and Λ/Z^n ≅ (Z/2)².
+
+    Watson constraint: each of c1, c2, and c1 ⊕ c2 must have weight ≥ 5
+    (the binary d=2 Watson lower bound applied to each Klein coset).
+
+    Construction: drop e_{p1} where p1 ∈ supp(c1) \\ supp(c2), and
+    e_{p2} where p2 ∈ supp(c2) \\ supp(c1). Use B' = (c1/2, c2/2,
+    e_i for i ∉ {p1, p2}) as the new basis. Express:
+
+        e_{p1} = 2 (c1/2) - Σ_{i ∈ supp(c1)\\{p1}} e_i
+               = 2 b_0 - Σ_{i ∈ supp(c1)\\{p1}} e_i_in_new_basis
+        e_{p2} = 2 b_1 - Σ_{i ∈ supp(c2)\\{p2}} e_i_in_new_basis
+        e_k for k ∉ {p1, p2}: just b_{new_idx(k)}.
+    """
+    if any(x not in {0, 1} for x in c1):
+        raise ValueError("c1 must be binary")
+    if any(x not in {0, 1} for x in c2):
+        raise ValueError("c2 must be binary")
+    if len(c1) != n or len(c2) != n:
+        raise ValueError(f"codes must have length {n}")
+
+    p1 = next(
+        (i for i in range(n) if c1[i] == 1 and c2[i] == 0),
+        None,
+    )
+    p2 = next(
+        (i for i in range(n) if c1[i] == 0 and c2[i] == 1),
+        None,
+    )
+    if p1 is None or p2 is None:
+        raise ValueError(
+            f"cannot find drop positions: supp(c1)={list(c1)}, "
+            f"supp(c2)={list(c2)} — supp(c1) ⊆ supp(c2) or vice versa"
+        )
+
+    drops = sorted([p1, p2])
+
+    def new_idx(i: int) -> int:
+        if i in (p1, p2):
+            raise ValueError(f"e_{i} is dropped")
+        if i < drops[0]:
+            return 2 + i
+        elif i < drops[1]:
+            return 2 + i - 1
+        else:
+            return 2 + i - 2
+
+    M: list[list[int]] = []
+    for k in range(n):
+        new_coords = [0] * n
+        if k == p1:
+            new_coords[0] = 2
+            for i in range(n):
+                if c1[i] == 1 and i != p1:
+                    new_coords[new_idx(i)] = -1
+        elif k == p2:
+            new_coords[1] = 2
+            for i in range(n):
+                if c2[i] == 1 and i != p2:
+                    new_coords[new_idx(i)] = -1
+        else:
+            new_coords[new_idx(k)] = 1
+        M.append(new_coords)
+    return M
+
+
+def enumerate_index_4_klein_cells(n: int) -> list[VoronoiCell]:
+    """Index-4 d=2² Klein four-group cells in Z^n with s = n.
+
+    Λ/Z^n ≅ (Z/2)² with two independent binary code generators c1, c2.
+    Each of c1, c2, c1 ⊕ c2 must satisfy the binary d=2 Watson constraint
+    (weight ≥ 5).
+
+    For n=8, [DSEKM19] Theorem 2.8 says 1 cell with weight distribution
+    (5², 6) — multi-set {5, 5, 6}. The constraints w_1 + w_2 - |T| ≤ n
+    (cosets fit in n positions), |T| ∈ [w_1+w_2-n, (w_1+w_2-5)/2]
+    (Watson on XOR coset) give only two valid (w_1, w_2, |T|) configs
+    in n=8: (5, 5, 2) and (5, 6, 3) — both with weight multiset
+    {5, 5, 6}, hence in the same orbit under qfisom dedupe.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if n < 8:
+        return []
+
+    from noether.api.lattice import is_realizable_min_vector_set, isometry
+
+    candidates: list[VoronoiCell] = []
+    for w_1 in range(5, n + 1):
+        for w_2 in range(w_1, n + 1):  # WLOG w_1 ≤ w_2
+            t_min = max(0, w_1 + w_2 - n)
+            t_max = (w_1 + w_2 - 5) // 2  # XOR ≥ 5
+            for t in range(t_min, t_max + 1):
+                # Build canonical c1, c2.
+                # supp(c1) = {0, ..., w_1 - 1}.
+                # supp(c2) = T ∪ {w_1, ..., w_1 + (w_2 - t) - 1}.
+                if w_1 + (w_2 - t) > n:
+                    continue
+                c1 = tuple(1 if i < w_1 else 0 for i in range(n))
+                c2 = tuple(
+                    1 if (i < t) or (w_1 <= i < w_1 + (w_2 - t)) else 0
+                    for i in range(n)
+                )
+                try:
+                    rows = _watson_min_vectors_d2_klein_canonical(n, c1, c2)
+                    candidates.append(VoronoiCell.from_rows(rows))
+                except ValueError:
+                    continue
+
+    realizable_candidates: list[VoronoiCell] = []
+    for cand in candidates:
+        V = [list(v) for v in cand.min_vectors]
+        try:
+            ok = is_realizable_min_vector_set(V, max_iterations=200)
+        except RuntimeError:
+            ok = False
+        if ok:
+            realizable_candidates.append(cand)
+
+    distinct: list[VoronoiCell] = []
+    distinct_grams: list[list[list[int]]] = []
+    for cand in realizable_candidates:
+        cand_gram = _gram_centroid(cand)
+        is_new = True
+        for d_gram in distinct_grams:
+            if isometry(cand_gram, d_gram) is not None:
+                is_new = False
+                break
+        if is_new:
+            distinct.append(cand)
+            distinct_grams.append(cand_gram)
+    return distinct
+
+
 def enumerate_index_5_cells(n: int) -> list[VoronoiCell]:
     """Index-5 cells in Z^n with s = n via Z/5Z Watson codes.
 
