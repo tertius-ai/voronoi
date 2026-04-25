@@ -131,8 +131,9 @@ rather than the voronoi repo:
    for the cell's interior is what we need. Reconstructing Q_σ from
    M is an n(n+1)/2 − N(N+1)/2 underdetermined linear system in
    general; Plesken-Pohst's classical recipe uses a specific
-   parameterization we haven't implemented yet. **Blocking Layer A
-   orientation tally.**
+   parameterization we haven't implemented yet. [DSEKM19] §2 sidesteps
+   this for low-perfection cells via Watson index theory rather than
+   running qfauto on M^T M. **Blocking Layer A orientation tally.**
 2. Performance of `qfauto` on the 50645-orbit N=8 n=12 corpus — is
    PARI fast enough, or do we need a native Plesken-Pohst port?
 3. Does the orientation-reversing argument extend to (N=9, n=12)?
@@ -141,12 +142,15 @@ rather than the voronoi repo:
    are the natural starting points? (E_8, D_9 relatives, etc.)
 5. Enumeration hardness scaling from (N=8, n=12) [50k orbits] to
    (N=9, n=12) [likely 10^5–10^6]. May need distributed.
-6. **Orientation character convention.** The action of g ∈ Stab on
-   σ's generators {v_i v_i^T} is by **unsigned** permutation
-   (v_i v_i^T = (-v_i)(-v_i)^T), so χ_σ(g) = sign(π) where π is the
-   induced permutation of min-vector pairs. Our `orientation.py`
-   currently computes det of the *signed* permutation. Fix before
-   re-running the tally.
+
+Resolved 2026-04-25 (see git history for prior text):
+
+- **OQ6 — Orientation character convention.** χ_σ(g) = sign(π) where
+  π is the unsigned permutation of min-vector pairs induced by g; no
+  ε_j sign factor. Confirmed against [DSEKM19] §1.2.1 and [EVGS13]
+  §3.1, both of which define orientation as an orientation of
+  R(σ) = span{v̂ : v ∈ m(σ)} ⊂ Sym²(R^N) with v̂ = v vᵀ sign-blind.
+  Implemented in `orientation.py`.
 
 ## References
 

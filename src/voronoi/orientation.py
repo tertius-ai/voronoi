@@ -1,16 +1,20 @@
 """Orientation character χ_σ : Stab(σ) → {±1}.
 
-For a cell σ of dimension n with min-vector matrix M ∈ Z^{n × N}:
-every g ∈ Stab(σ) permutes the signed column set {± (M^T)_i}. If v_j
-denotes the j-th row of M (= j-th column of M^T), then g · v_j^T is
-±v_{π(j)}^T for some permutation π and a sign ε_j ∈ {±1}. This gives
-a signed-permutation matrix P_g ∈ Z^{n × n} (the (π(j), j) entry is
-ε_j, others zero). The orientation character is
+The convention is from [DSEKM19] §1.2.1 / [EVGS13] §3.1: an orientation
+of σ is an orientation of the real vector space R(σ) ⊂ Sym²(R^N) of
+symmetric matrices spanned by the rank-1 forms v̂ = v vᵀ for v ∈ m(σ).
+A natural basis is { v̂ : v ∈ m(σ) / {±1} }.
 
-    χ_σ(g) = det(P_g) = sign(π) · ∏_j ε_j   ∈ {±1}.
+For g ∈ Stab(σ): g · v̂ = (g v)(g v)ᵀ = v̂_{π(j)}, where π is the
+permutation of *unordered* min-vector pairs induced by g. The εⱼ ∈ {±1}
+sign on g·v_j is irrelevant because v̂ is sign-blind (v̂ = (−v)̂ ).
+Therefore
+
+    χ_σ(g) = sign(π)   ∈ {±1}.
 
 A cell σ contributes 0 to C_n(Vor_{GL_N}; Z) mod 2-torsion iff χ_σ is
 NOT identically +1 on Stab(σ) — iff *some* g ∈ Stab(σ) has χ_σ(g) = −1.
+Equivalently σ ∉ Σ_n in the [DSEKM19] notation.
 
 This module has two entry points:
 
@@ -64,19 +68,15 @@ def _signed_permutation_of(
     return perm, signs
 
 
-def _signed_perm_det(perm: list[int], signs: list[int]) -> int:
-    """det of the signed-permutation matrix = sign(perm) · ∏ signs."""
-    # sign(perm) via inversions.
+def _perm_sign(perm: list[int]) -> int:
+    """Sign of a permutation, via inversion count."""
     n = len(perm)
     inversions = 0
     for i in range(n):
         for j in range(i + 1, n):
             if perm[i] > perm[j]:
                 inversions += 1
-    s = -1 if inversions % 2 else 1
-    for sg in signs:
-        s *= sg
-    return s
+    return -1 if inversions % 2 else 1
 
 
 def orientation_signs(
@@ -98,8 +98,8 @@ def orientation_signs(
                 "the cell's designated min-vector set. This needs a "
                 "qfminim verification step — see voronoi.stab."
             )
-        perm, signs = spd
-        out.append(_signed_perm_det(perm, signs))
+        perm, _signs = spd
+        out.append(_perm_sign(perm))
     return out
 
 

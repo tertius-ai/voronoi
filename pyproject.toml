@@ -21,3 +21,6 @@ packages = ["src/voronoi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: tests that take 2-60 seconds each (run with -m slow)",
+]
