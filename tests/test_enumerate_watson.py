@@ -18,7 +18,11 @@ except ImportError:
     pytest.skip("noether not available", allow_module_level=True)
 
 from voronoi.cells import VoronoiCell
-from voronoi.enumerate import enumerate_index_1_cells, enumerate_index_2_cells
+from voronoi.enumerate import (
+    enumerate_index_1_cells,
+    enumerate_index_2_cells,
+    enumerate_index_3_cells,
+)
 from voronoi.parse import parse_list_shv_file
 
 _DATA = (
@@ -124,3 +128,60 @@ def test_index_1_and_2_together_cover_5_distinct_db_cells() -> None:
         assert len(matches) == 1
         matched_db.add(matches[0])
     assert len(matched_db) == 5
+
+
+def test_index_3_n8_count() -> None:
+    """2 cells: weights 7 and 8 (Watson constraint ∑|a_i| > 2d = 6)."""
+    enumerated = enumerate_index_3_cells(8)
+    assert len(enumerated) == 2
+
+
+def test_index_3_n_too_small_returns_empty() -> None:
+    """No d=3 cells with s=n in dim < 7."""
+    for n in range(1, 7):
+        assert enumerate_index_3_cells(n) == []
+
+
+def test_index_3_n8_each_matches_one_database_cell() -> None:
+    """Each of the 2 enumerated d=3 cells must match exactly one
+    database cell."""
+    enumerated = enumerate_index_3_cells(8)
+    assert len(enumerated) == 2
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+
+    matched_db: set[int] = set()
+    for w_idx, enum_cell in enumerate(enumerated):
+        matches = [i for i, c in enumerate(db_cells) if _cells_match(enum_cell, c)]
+        weight = w_idx + 7
+        assert len(matches) == 1, (
+            f"d=3 w={weight}: expected exactly one db match, got {matches}"
+        )
+        matched_db.add(matches[0])
+    assert len(matched_db) == 2
+
+
+def test_index_1_2_3_together_cover_7_distinct_db_cells() -> None:
+    """Combined d=1, d=2, d=3 enumerations should distinguish 7 cells
+    (1 + 4 + 2) and cover 7 distinct database cells."""
+    all_enumerated = (
+        enumerate_index_1_cells(8)
+        + enumerate_index_2_cells(8)
+        + enumerate_index_3_cells(8)
+    )
+    assert len(all_enumerated) == 7
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+
+    matched_db: set[int] = set()
+    for enum_cell in all_enumerated:
+        matches = [i for i, c in enumerate(db_cells) if _cells_match(enum_cell, c)]
+        assert len(matches) == 1
+        matched_db.add(matches[0])
+    assert len(matched_db) == 7

@@ -105,3 +105,70 @@ def enumerate_index_2_cells(n: int) -> list[VoronoiCell]:
         rows = _watson_min_vectors_d2_canonical(n, w)
         cells.append(VoronoiCell.from_rows(rows))
     return cells
+
+
+def _watson_min_vectors_d_canonical(
+    n: int, weight: int, d: int
+) -> list[list[int]]:
+    """Min-vector matrix for the d-cyclic cell with canonical
+    "all-ones-on-support" Z/dZ code of given weight.
+
+    For canonical c = (1, ..., 1, 0, ..., 0) with w leading 1s, take
+    basis B' = (c/d, e_1, ..., e_{n-1}) of Λ_c = Z^n + (c/d) Z. In new
+    coords:
+
+        m_0 = e_0 (old) = d·b_0 − Σ_{i ∈ supp(c) \\ {0}} b_i
+                       = (d, -1, ..., -1, 0, ..., 0)  [w-1 -1s, then 0s]
+        m_i = e_i (old) = b_i for i ≥ 1.
+
+    The Watson constraint for s = n exactly is ∑|a_i| > 2d strict
+    (equality gives extras at the same min norm — see d=2 weight 4
+    case). For all-ones canonical codes that's weight > 2d, so
+    weight ≥ 2d + 1.
+
+    This handles cyclic Z/dZ extensions where the canonical orbit rep
+    (mod signed permutation symmetry) is the all-ones-on-support
+    pattern. For d ≥ 4 with non-coprime entries (e.g. a_i = 2 in Z/4Z)
+    this construction does NOT cover all orbits — see d=4 enumerator.
+    """
+    if d < 2:
+        raise ValueError(f"d must be >= 2 for cyclic case, got {d}")
+    if weight <= 2 * d:
+        raise ValueError(
+            f"weight must be > 2d = {2*d} for s=n, got {weight}"
+        )
+    if weight > n:
+        raise ValueError(f"weight must be <= n = {n}, got {weight}")
+    M: list[list[int]] = []
+    # m_0 = (d, -1, ..., -1, 0, ..., 0).
+    m_0 = [0] * n
+    m_0[0] = d
+    for i in range(1, weight):
+        m_0[i] = -1
+    M.append(m_0)
+    for i in range(1, n):
+        row = [0] * n
+        row[i] = 1
+        M.append(row)
+    return M
+
+
+def enumerate_index_3_cells(n: int) -> list[VoronoiCell]:
+    """Index-3 cells in Z^n with s = n via Z/3Z Watson codes.
+
+    Z/3Z codes have entries a_i ∈ {0, 1, 2}, with 2 ≡ -1 mod 3. Mod
+    signed permutations of coordinates (S_n × {±1}^n), all nonzero
+    entries can be normalized to 1, so the canonical orbit rep is the
+    all-ones-on-support code (1, ..., 1, 0, ..., 0). The strict Watson
+    constraint ∑|a_i| > 2d = 6 forces weight ≥ 7. Per [DSEKM19] Table 2,
+    for n=8 we get 2 cells (weights 7 and 8).
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if n < 7:
+        return []
+    cells: list[VoronoiCell] = []
+    for w in range(7, n + 1):
+        rows = _watson_min_vectors_d_canonical(n, w, d=3)
+        cells.append(VoronoiCell.from_rows(rows))
+    return cells
