@@ -172,3 +172,135 @@ def enumerate_index_3_cells(n: int) -> list[VoronoiCell]:
         rows = _watson_min_vectors_d_canonical(n, w, d=3)
         cells.append(VoronoiCell.from_rows(rows))
     return cells
+
+
+def _watson_min_vectors_d4_cyclic_canonical(
+    n: int, n_2: int, n_1: int, n_0: int
+) -> list[list[int]]:
+    """Min-vector matrix for the d=4 cyclic cell with canonical Z/4Z code
+    of given composition.
+
+    Canonical placement (mod S_n × {±1}^n): 2's first, then 1's, then 0's:
+
+        c = (2, ..., 2, 1, ..., 1, 0, ..., 0)
+              n_2 times  n_1 times  n_0 times
+
+    For [Λ:Z^n] = 4 strict (cyclic), we need n_1 >= 1 (at least one
+    entry coprime to 4). The 2's are self-inverse mod 4, so they
+    contribute index-2 sub-structure; the 1's give the cyclic order-4
+    generator.
+
+    Construction: drop e_p where p = n_2 (first c_p=1 position). New
+    basis is
+
+        B' = (c/4, e_0, ..., e_{p-1}, e_{p+1}, ..., e_{n-1}).
+
+    In new coords:
+
+        e_k (k != p):  index k+1 if k<p else k, value 1.
+        e_p (k == p):  (4, -c_0, -c_1, ..., -c_{p-1}, -c_{p+1}, ..., -c_{n-1})
+                       (with the c_i's renumbered to skip p).
+    """
+    if n != n_2 + n_1 + n_0:
+        raise ValueError(
+            f"composition (n_2={n_2}, n_1={n_1}, n_0={n_0}) sums to "
+            f"{n_2+n_1+n_0}, expected {n}"
+        )
+    if n_1 < 1:
+        raise ValueError("n_1 >= 1 required for primitive d=4 cyclic cell")
+    weight = 2 * n_2 + n_1
+    if weight <= 8:
+        raise ValueError(
+            f"weight = 2 n_2 + n_1 = {weight}, must be > 8 (Watson)"
+        )
+
+    c = [2] * n_2 + [1] * n_1 + [0] * n_0
+    p = n_2  # first position with c_p = 1.
+
+    M: list[list[int]] = []
+    for k in range(n):
+        new_coords = [0] * n
+        if k == p:
+            new_coords[0] = 4
+            for i in range(n):
+                if i == p:
+                    continue
+                new_idx = i + 1 if i < p else i
+                new_coords[new_idx] = -c[i]
+        else:
+            new_idx = k + 1 if k < p else k
+            new_coords[new_idx] = 1
+        M.append(new_coords)
+    return M
+
+
+def _gram_centroid(cell: VoronoiCell) -> list[list[int]]:
+    """Centroid Gram form A_σ = Σ_v v v^T = M^T M (rows = min vectors)."""
+    n = cell.lattice_rank
+    g = [[0] * n for _ in range(n)]
+    for v in cell.min_vectors:
+        for i in range(n):
+            for j in range(n):
+                g[i][j] += v[i] * v[j]
+    return g
+
+
+def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
+    """Index-4 cyclic cells in Z^n with s = n via Z/4Z Watson codes.
+
+    For n=8, [DSEKM19] Table 2 says 4 cells. We enumerate every
+    composition (n_2, n_1, n_0) with n_2 + n_1 + n_0 = n, n_1 >= 1
+    (primitive), and weight 2 n_2 + n_1 > 8 (strict Watson). The
+    Watson constraint is necessary but not sufficient for s = n
+    exactly — most compositions yield a candidate where the Watson
+    code has subtle extras at min norm (s > n cells in some
+    coordinate-permuted basis), which DSEKM Table 2 does NOT classify
+    as (n, n) cells.
+
+    Filter: ``noether.api.lattice.is_realizable_min_vector_set`` —
+    the [DSEKM19] §3.1 LP loop only accepts V's that are exactly the
+    tight min set of some PD form (no equal-norm extras). On n=8,
+    this drops 12 of 16 candidates leaving exactly 4 cells.
+
+    Then qfisom on centroid Grams confirms these 4 are pairwise
+    inequivalent.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if n < 5:
+        return []
+
+    from noether.api.lattice import is_realizable_min_vector_set, isometry
+
+    candidates: list[VoronoiCell] = []
+    for n_2 in range(0, n + 1):
+        for n_1 in range(1, n + 1 - n_2):
+            n_0 = n - n_2 - n_1
+            weight = 2 * n_2 + n_1
+            if weight <= 2 * 4:
+                continue
+            try:
+                rows = _watson_min_vectors_d4_cyclic_canonical(n, n_2, n_1, n_0)
+                candidates.append(VoronoiCell.from_rows(rows))
+            except ValueError:
+                continue
+
+    realizable_candidates: list[VoronoiCell] = []
+    for cand in candidates:
+        V = [list(v) for v in cand.min_vectors]
+        if is_realizable_min_vector_set(V, max_iterations=50):
+            realizable_candidates.append(cand)
+
+    distinct: list[VoronoiCell] = []
+    distinct_grams: list[list[list[int]]] = []
+    for cand in realizable_candidates:
+        cand_gram = _gram_centroid(cand)
+        is_new = True
+        for d_gram in distinct_grams:
+            if isometry(cand_gram, d_gram) is not None:
+                is_new = False
+                break
+        if is_new:
+            distinct.append(cand)
+            distinct_grams.append(cand_gram)
+    return distinct

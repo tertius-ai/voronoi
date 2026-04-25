@@ -22,10 +22,12 @@ from voronoi.enumerate.watson import (
     enumerate_index_1_cells,
     enumerate_index_2_cells,
     enumerate_index_3_cells,
+    enumerate_index_4_cyclic_cells,
 )
 
 __all__ = [
     "enumerate_index_1_cells",
     "enumerate_index_2_cells",
     "enumerate_index_3_cells",
+    "enumerate_index_4_cyclic_cells",
 ]

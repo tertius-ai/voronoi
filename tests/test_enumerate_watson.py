@@ -22,6 +22,7 @@ from voronoi.enumerate import (
     enumerate_index_1_cells,
     enumerate_index_2_cells,
     enumerate_index_3_cells,
+    enumerate_index_4_cyclic_cells,
 )
 from voronoi.parse import parse_list_shv_file
 
@@ -185,3 +186,56 @@ def test_index_1_2_3_together_cover_7_distinct_db_cells() -> None:
         assert len(matches) == 1
         matched_db.add(matches[0])
     assert len(matched_db) == 7
+
+
+@pytest.mark.slow
+def test_index_4_cyclic_n8_count() -> None:
+    """4 cells: enumerated from 16 Z/4Z compositions then filtered via
+    is_realizable_min_vector_set + qfisom dedupe."""
+    cells = enumerate_index_4_cyclic_cells(8)
+    assert len(cells) == 4
+
+
+@pytest.mark.slow
+def test_index_4_cyclic_n8_each_matches_one_database_cell() -> None:
+    """The 4 enumerated d=4 cyclic cells should each match exactly one
+    database cell."""
+    enumerated = enumerate_index_4_cyclic_cells(8)
+    assert len(enumerated) == 4
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+
+    matched_db: set[int] = set()
+    for enum_cell in enumerated:
+        matches = [i for i, c in enumerate(db_cells) if _cells_match(enum_cell, c)]
+        assert len(matches) == 1
+        matched_db.add(matches[0])
+    assert len(matched_db) == 4
+
+
+@pytest.mark.slow
+def test_d1_through_d4_cyclic_cover_11_distinct_db_cells() -> None:
+    """Combined d=1, d=2, d=3, d=4-cyclic enumerations: 1 + 4 + 2 + 4 = 11
+    distinct database cells. (Remaining 2: d=2² Klein, d=5.)"""
+    all_enumerated = (
+        enumerate_index_1_cells(8)
+        + enumerate_index_2_cells(8)
+        + enumerate_index_3_cells(8)
+        + enumerate_index_4_cyclic_cells(8)
+    )
+    assert len(all_enumerated) == 11
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    db_cells = parse_list_shv_file(path)
+
+    matched_db: set[int] = set()
+    for enum_cell in all_enumerated:
+        matches = [i for i, c in enumerate(db_cells) if _cells_match(enum_cell, c)]
+        assert len(matches) == 1, f"expected one match, got {matches}"
+        matched_db.add(matches[0])
+    assert len(matched_db) == 11
