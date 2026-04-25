@@ -174,54 +174,58 @@ def enumerate_index_3_cells(n: int) -> list[VoronoiCell]:
     return cells
 
 
-def _watson_min_vectors_d4_cyclic_canonical(
-    n: int, n_2: int, n_1: int, n_0: int
+def _watson_min_vectors_d_cyclic_canonical(
+    n: int, n_2: int, n_1: int, n_0: int, d: int
 ) -> list[list[int]]:
-    """Min-vector matrix for the d=4 cyclic cell with canonical Z/4Z code
-    of given composition.
+    """Min-vector matrix for a d-cyclic cell with canonical Z/dZ code
+    of given composition (n_2 twos, n_1 ones, n_0 zeros).
 
     Canonical placement (mod S_n × {±1}^n): 2's first, then 1's, then 0's:
 
         c = (2, ..., 2, 1, ..., 1, 0, ..., 0)
               n_2 times  n_1 times  n_0 times
 
-    For [Λ:Z^n] = 4 strict (cyclic), we need n_1 >= 1 (at least one
-    entry coprime to 4). The 2's are self-inverse mod 4, so they
-    contribute index-2 sub-structure; the 1's give the cyclic order-4
-    generator.
+    For ``[Λ:Z^n] = d`` strict (cyclic), we need n_1 >= 1 (at least one
+    entry coprime to d). The construction generalizes the d=2 / d=3
+    canonical: drop e_p where p = n_2 (first c_p=1 position) and use
 
-    Construction: drop e_p where p = n_2 (first c_p=1 position). New
-    basis is
+        B' = (c/d, e_0, ..., e_{p-1}, e_{p+1}, ..., e_{n-1})
 
-        B' = (c/4, e_0, ..., e_{p-1}, e_{p+1}, ..., e_{n-1}).
-
-    In new coords:
+    as the new basis. In new coords:
 
         e_k (k != p):  index k+1 if k<p else k, value 1.
-        e_p (k == p):  (4, -c_0, -c_1, ..., -c_{p-1}, -c_{p+1}, ..., -c_{n-1})
+        e_p (k == p):  (d, -c_0, -c_1, ..., -c_{p-1}, -c_{p+1}, ..., -c_{n-1})
                        (with the c_i's renumbered to skip p).
+
+    Used for d ∈ {4, 5} where canonical entries are {0, 1, 2} after
+    sign normalization. (For d=2 / d=3 the simpler all-ones-on-support
+    helper suffices since 2 ≡ -1 in Z/3 and 1 = -1 in Z/2.)
     """
+    if d < 2:
+        raise ValueError(f"d must be >= 2, got {d}")
     if n != n_2 + n_1 + n_0:
         raise ValueError(
             f"composition (n_2={n_2}, n_1={n_1}, n_0={n_0}) sums to "
             f"{n_2+n_1+n_0}, expected {n}"
         )
     if n_1 < 1:
-        raise ValueError("n_1 >= 1 required for primitive d=4 cyclic cell")
-    weight = 2 * n_2 + n_1
-    if weight <= 8:
         raise ValueError(
-            f"weight = 2 n_2 + n_1 = {weight}, must be > 8 (Watson)"
+            f"n_1 >= 1 required for primitive d={d} cyclic cell"
+        )
+    weight = 2 * n_2 + n_1
+    if weight <= 2 * d:
+        raise ValueError(
+            f"weight = 2 n_2 + n_1 = {weight}, must be > 2d = {2*d}"
         )
 
     c = [2] * n_2 + [1] * n_1 + [0] * n_0
-    p = n_2  # first position with c_p = 1.
+    p = n_2
 
     M: list[list[int]] = []
     for k in range(n):
         new_coords = [0] * n
         if k == p:
-            new_coords[0] = 4
+            new_coords[0] = d
             for i in range(n):
                 if i == p:
                     continue
@@ -232,6 +236,14 @@ def _watson_min_vectors_d4_cyclic_canonical(
             new_coords[new_idx] = 1
         M.append(new_coords)
     return M
+
+
+def _watson_min_vectors_d4_cyclic_canonical(
+    n: int, n_2: int, n_1: int, n_0: int
+) -> list[list[int]]:
+    """Backwards-compat alias for the d=4 case of
+    :func:`_watson_min_vectors_d_cyclic_canonical`."""
+    return _watson_min_vectors_d_cyclic_canonical(n, n_2, n_1, n_0, d=4)
 
 
 def _gram_centroid(cell: VoronoiCell) -> list[list[int]]:
@@ -288,7 +300,73 @@ def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
     realizable_candidates: list[VoronoiCell] = []
     for cand in candidates:
         V = [list(v) for v in cand.min_vectors]
-        if is_realizable_min_vector_set(V, max_iterations=50):
+        try:
+            ok = is_realizable_min_vector_set(V, max_iterations=200)
+        except RuntimeError:
+            # Convergence failure on this candidate — treat as not
+            # realizable (this is the s > n case where the LP loop
+            # doesn't terminate cleanly).
+            ok = False
+        if ok:
+            realizable_candidates.append(cand)
+
+    distinct: list[VoronoiCell] = []
+    distinct_grams: list[list[list[int]]] = []
+    for cand in realizable_candidates:
+        cand_gram = _gram_centroid(cand)
+        is_new = True
+        for d_gram in distinct_grams:
+            if isometry(cand_gram, d_gram) is not None:
+                is_new = False
+                break
+        if is_new:
+            distinct.append(cand)
+            distinct_grams.append(cand_gram)
+    return distinct
+
+
+def enumerate_index_5_cells(n: int) -> list[VoronoiCell]:
+    """Index-5 cells in Z^n with s = n via Z/5Z Watson codes.
+
+    Same composition-based construction as d=4 cyclic, but with d=5.
+    Canonical Z/5Z entries (mod sign-flip) are {0, 1, 2} since 2 and
+    3 = -2 mod 5 are not equal (and |3| as Z/5 element = 2 =|2|).
+
+    Watson constraint: weight 2 n_2 + n_1 > 2d = 10. For n=8 this gives
+    9 candidate compositions (e.g. (3, 5, 0) at weight 11, (4, 4, 0) at
+    12, etc.). After realizability + qfisom filtering, [DSEKM19] Table 2
+    says 1 cell.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if n < 6:
+        return []
+
+    from noether.api.lattice import is_realizable_min_vector_set, isometry
+
+    candidates: list[VoronoiCell] = []
+    for n_2 in range(0, n + 1):
+        for n_1 in range(1, n + 1 - n_2):
+            n_0 = n - n_2 - n_1
+            weight = 2 * n_2 + n_1
+            if weight <= 2 * 5:
+                continue
+            try:
+                rows = _watson_min_vectors_d_cyclic_canonical(
+                    n, n_2, n_1, n_0, d=5
+                )
+                candidates.append(VoronoiCell.from_rows(rows))
+            except ValueError:
+                continue
+
+    realizable_candidates: list[VoronoiCell] = []
+    for cand in candidates:
+        V = [list(v) for v in cand.min_vectors]
+        try:
+            ok = is_realizable_min_vector_set(V, max_iterations=200)
+        except RuntimeError:
+            ok = False
+        if ok:
             realizable_candidates.append(cand)
 
     distinct: list[VoronoiCell] = []
