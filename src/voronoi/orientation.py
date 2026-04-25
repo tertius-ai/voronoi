@@ -107,9 +107,12 @@ def has_orientation_reversing(cell: VoronoiCell) -> bool:
     """True iff ∃ g ∈ Stab(σ) with χ_σ(g) = −1.
 
     Equivalently: σ contributes 0 to C_n(Vor_{GL_N}) mod 2-torsion.
-    """
-    from voronoi.stab import stabilizer
 
-    stab = stabilizer(cell)
+    Uses :func:`voronoi.stab.cell_stabilizer` which constructs Stab(σ)
+    via the realizability LP witness Gram (resolves OQ1).
+    """
+    from voronoi.stab import cell_stabilizer
+
+    stab = cell_stabilizer(cell)
     signs = orientation_signs(cell, stab.generators)
     return any(s == -1 for s in signs)
