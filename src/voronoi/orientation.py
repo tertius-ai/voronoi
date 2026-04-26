@@ -109,10 +109,110 @@ def has_orientation_reversing(cell: VoronoiCell) -> bool:
     Equivalently: σ contributes 0 to C_n(Vor_{GL_N}) mod 2-torsion.
 
     Uses :func:`voronoi.stab.cell_stabilizer` which constructs Stab(σ)
-    via the realizability LP witness Gram (resolves OQ1).
+    via the realizability LP witness Gram (resolves OQ1 via the
+    LP-witness path; but see :func:`has_orientation_reversing_exact`
+    for the exact, brute-force-but-correct alternative when the
+    qfauto-with-shv subgroup undercounts Stab).
     """
     from voronoi.stab import cell_stabilizer
 
     stab = cell_stabilizer(cell)
     signs = orientation_signs(cell, stab.generators)
     return any(s == -1 for s in signs)
+
+
+def has_orientation_reversing_exact(cell: VoronoiCell) -> bool:
+    """Exact check via signed-permutation enumeration.
+
+    For each (π, ε) ∈ S_n × {±1}^n with sign(π) = -1, check whether
+    there exists ``g ∈ GL_N(Z)`` with ``g · v_i = ε_i v_{π(i)}`` for
+    all i. If yes, return True (orientation-reversing element exists).
+    If no odd permutation yields a valid g, return False.
+
+    Algorithm (vectorized): for each odd permutation π,
+
+        W = V[:, π] · diag(ε)        (over all 2^n sign vectors, batched)
+        g_num = W · adj(V)           (integer)
+        g = g_num / det(V)           (integer iff divisible everywhere)
+
+    Uses exact integer arithmetic (no FP rounding step beyond np.round
+    for adj(V), which is verified by V·adj(V) = det(V)·I).
+
+    Runtime: ``O(n!/2 · 2^n · N^3)`` arithmetic ops, fully vectorized
+    over the 2^n sign axis. For n=N=8 this is ≤ ~1 sec per cell with
+    early termination.
+
+    Args:
+        cell: a :class:`VoronoiCell` with ``cell.dim == cell.lattice_rank``.
+
+    Returns:
+        ``True`` iff some odd signed permutation lifts to ``g ∈ Stab(σ)``.
+    """
+    import itertools
+
+    import numpy as np
+
+    n = cell.dim
+    N = cell.lattice_rank
+    if n != N:
+        raise ValueError(
+            f"exact orientation check requires n = N (square M); got "
+            f"n={n}, N={N}"
+        )
+
+    # V: (N, n), columns = min vectors v_i (column form).
+    V = np.array(cell.min_vectors, dtype=np.int64).T
+
+    det_V = int(round(float(np.linalg.det(V.astype(np.float64)))))
+    if det_V == 0:
+        raise ValueError("V is singular — cell's min vectors aren't LI")
+
+    # adj(V) = det(V) · V^{-1}, integer.
+    V_inv_float = np.linalg.inv(V.astype(np.float64))
+    adj_V = np.round(det_V * V_inv_float).astype(np.int64)
+    if not np.array_equal(V @ adj_V, det_V * np.eye(n, dtype=np.int64)):
+        raise RuntimeError("adj(V) integerization failed (FP precision issue)")
+
+    abs_det = abs(det_V)
+    sign_det = 1 if det_V > 0 else -1
+
+    # Pre-build all 2^n sign vectors as a (2^n, n) int64 matrix.
+    eps_all = np.empty((2 ** n, n), dtype=np.int64)
+    for k in range(2 ** n):
+        for i in range(n):
+            eps_all[k, i] = 1 if (k >> i) & 1 else -1
+
+    # Pre-build odd permutations as a list.
+    odd_perms: list[tuple[int, ...]] = []
+    for pi in itertools.permutations(range(n)):
+        inversions = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                if pi[i] > pi[j]:
+                    inversions += 1
+        if inversions % 2 == 1:
+            odd_perms.append(pi)
+
+    eye_n = np.eye(n, dtype=np.int64)
+
+    for pi in odd_perms:
+        V_pi = V[:, list(pi)]                        # (N, n)
+        # W_batch[k, :, j] = eps_all[k, j] * V_pi[:, j]
+        W_batch = V_pi[None, :, :] * eps_all[:, None, :]    # (2^n, N, n)
+        g_num = W_batch @ adj_V[None, :, :]                  # (2^n, N, N)
+        # Divisibility: g_num % abs_det == 0 entrywise.
+        divisibility_ok = np.all(g_num % abs_det == 0, axis=(1, 2))
+        if not divisibility_ok.any():
+            continue
+        valid = np.where(divisibility_ok)[0]
+        # For valid k's: g_int = sign_det * (g_num[k] // abs_det).
+        for k in valid:
+            g_int = sign_det * (g_num[k] // abs_det)
+            # Verify exact: g_int · V == W_batch[k].
+            if not np.array_equal(g_int @ V, W_batch[k]):
+                continue
+            # |det g_int| must be 1 (unimodular).
+            det_g = int(round(float(np.linalg.det(g_int.astype(np.float64)))))
+            if abs(det_g) == 1:
+                return True
+    return False

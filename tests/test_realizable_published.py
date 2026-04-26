@@ -46,3 +46,24 @@ def test_all_13_published_n8_n8_cells_are_realizable() -> None:
             f"cell {i} is in the published database, hence realizable, but "
             f"is_realizable_min_vector_set returned False"
         )
+
+
+def test_sigma_n8_GL8_equals_zero() -> None:
+    """All 13 published (N=8, n=8) cells have an orientation-reversing
+    element in Stab(σ), so Σ_n=8(GL_8) = 0 — matching [DSEKM19] Table 4.
+
+    This verifies the K_8(Z) = 0 chain-complex input at the (n=8, N=8)
+    corner: V_8(GL_8) = Z[Σ_n=8] = 0, hence H_8 = 0 mod 2-torsion.
+    """
+    from voronoi.orientation import has_orientation_reversing_exact
+
+    path = _DATA / "ListSHV_n8_rank8"
+    if not path.exists():
+        pytest.skip(f"{path.name} not fetched")
+    cells = parse_list_shv_file(path)
+    n_survive = sum(
+        1 for cell in cells if not has_orientation_reversing_exact(cell)
+    )
+    assert n_survive == 0, (
+        f"Σ_n=8(GL_8) = {n_survive}, expected 0 per DSEKM Table 4"
+    )
