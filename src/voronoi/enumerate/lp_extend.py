@@ -10,13 +10,30 @@ Watson `n = N` case — particularly the (N, n=12) cells we need at
 N ∈ {9, 10, 11} for the K_12(Z) program.
 
 **Status: WIP**, validated only on cell 0 of (N=8, n=8) (extends to 56
-candidate cells at n=9). Cells 1+ trigger an uncatchable PARI error
-``domain error in minim0: form is not positive definite`` from inside
-the realizability LP loop on certain candidate extensions. The float
-Cholesky PD check in :func:`noether.api.lattice.realize_min_vector_set`
-passes for forms that PARI's exact arithmetic rejects. Need either
-(a) a stricter integer PD check (Sylvester via Bareiss) before calling
-qfminim, or (b) Rust-side catching of PARI domain errors.
+candidate cells at n=9). The pipeline has two known blockers on cells
+1+ of (N=8, n=8):
+
+(1) ``RuntimeError: realize_min_vector_set: did not converge in N
+    iterations`` on hard candidate extensions. Cell 9 hits this with
+    the default budget. Treated below as graceful degradation
+    (try/except → False) rather than tanking the whole layer; bumping
+    ``realizability_max_iterations`` reduces false negatives.
+
+(2) Uncatchable PARI error ``domain error in minim0: form is not
+    positive definite`` on certain LP-emitted witness Grams. The
+    integer Sylvester PD check in
+    :func:`noether.api.lattice.is_positive_definite` (FLINT-backed,
+    via :func:`noether.api.lattice.realize_min_vector_set`) is exact
+    and equivalent to PARI's :c:func:`qfgaussred_positive`. The
+    crash is upstream of that check: PARI's :c:func:`qfminim0`
+    pre-LLLs the form via :c:func:`lllgramint` and rejects the input
+    when the LLL'd basis comes back with fewer columns than the
+    original (``lg(*u) != lg(a)``) — which can fire on truly-PD but
+    ill-conditioned integer forms. Fixing this needs **(a)** Rust-
+    side ``pari_err`` catching with a longjmp landing pad in
+    :mod:`noether_engine.session`, or **(b)** subprocess isolation
+    of the qfminim call. Both are tracked in noether's lattice
+    backlog.
 
 References:
     [DSEKM19] arXiv:1910.11598 §3 "Enumeration of configurations of vectors"
@@ -33,7 +50,7 @@ def extend_cell_by_one(
     cell: VoronoiCell,
     *,
     norm_excess_factor: int = 2,
-    realizability_max_iterations: int = 100,
+    realizability_max_iterations: int = 200,
 ) -> list[VoronoiCell]:
     """Enumerate (N, n+1) candidate cells obtained by extending ``cell``
     (at (N, n)) with one new min vector ``u``.
@@ -113,9 +130,16 @@ def extend_cell_by_one(
         if tuple(u) in v_set or tuple(-x for x in u) in v_set:
             continue
         V_extended = V + [u]
-        if is_realizable_min_vector_set(
-            V_extended, max_iterations=realizability_max_iterations
-        ):
+        try:
+            realizable = is_realizable_min_vector_set(
+                V_extended, max_iterations=realizability_max_iterations
+            )
+        except RuntimeError:
+            # Convergence failure within the LP loop's iteration budget
+            # is treated as "not realizable" (false-negative tolerated).
+            # Bump ``realizability_max_iterations`` to reduce these.
+            realizable = False
+        if realizable:
             extensions.append(VoronoiCell.from_rows(V_extended))
     return extensions
 
@@ -136,7 +160,7 @@ def extend_layer(
     seeds: Iterable[VoronoiCell],
     *,
     norm_excess_factor: int = 2,
-    realizability_max_iterations: int = 100,
+    realizability_max_iterations: int = 200,
 ) -> list[VoronoiCell]:
     """Extend a layer of cells at (N, n) to a layer at (N, n+1) and
     qfisom-dedupe the result.

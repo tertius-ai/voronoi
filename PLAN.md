@@ -142,6 +142,18 @@ rather than the voronoi repo:
    are the natural starting points? (E_8, D_9 relatives, etc.)
 5. Enumeration hardness scaling from (N=8, n=12) [50k orbits] to
    (N=9, n=12) [likely 10^5–10^6]. May need distributed.
+6. **PARI uncatchable crash in `qfminim` blocks `lp_extend` at
+   scale.** The Sylvester PD check in
+   `noether.api.lattice.is_positive_definite` is exact and equivalent
+   to `qfgaussred_positive`, but `qfminim0`'s pre-LLL via
+   `lllgramint` rejects ill-conditioned-but-PD integer Grams when
+   the LLL'd basis comes back with fewer columns. The longjmp inside
+   `pari_err_DOMAIN` takes the process down because
+   `noether_engine::session` does not register a recovery callback.
+   Fix needs either (a) Rust-side `cb_pari_err_recover` + `setjmp`
+   landing pad in `engine/noether_engine/src/session.rs`, or
+   (b) subprocess-isolating `qfminim` calls. **Blocks layer B
+   validation past (N=8, n=8) cell 0 of the LP-extend pipeline.**
 
 Resolved 2026-04-25 (see git history for prior text):
 
