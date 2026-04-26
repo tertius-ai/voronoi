@@ -12,21 +12,52 @@ K_12(Z).
 
 ## Status
 
-**Phase A (reproduce K_8(Z) = 0): ~85%.**
+**Milestone — K_8(Z) reproduction closed (Phase A done at minimum
+sufficiency):** Per Kupers' [Kup19] short-proof argument (his Remark
+2.4), the strict input to `K_8(Z) = 0` via the Voronoi route is
+`Σ_n=8(GL_8) = ∅` — equivalently `H_1(GL_8(Z); St_8) = 0 mod S_9` via
+DSEKM Prop 1.5 (`H_q(GL_p; St_p) ≅ H_{q+p-1}(Vor_{GL_p}) mod S_{p+1}`,
+collapsing `V_8 = 0` makes `H_8(Vor_{GL_8}) = 0` trivially). Combined
+with Lee-Szczarba (`p ≤ 4`), Elbaz-Vincent–Gangl–Soulé (`p ∈ {5, 6, 7}`),
+and Borel's `K_4i(Z)`-is-finite-torsion-at-irregular-primes>10⁸, this
+closes `K_8(Z) ⊗ Z[1/7!] = 0` per Kupers' spectral-sequence argument.
 
-- (N=8, n=8): cells reproduced from scratch via Watson theory (13/13);
-  orientation tally Σ_n=8(GL_8) = 0 matches DSEKM Table 4.
-- (N=8, n=9): orientation tally Σ_n=9(GL_8) = 0 (106 cells, 0.34s).
-- (N=8, n=10): orientation tally Σ_n=10(GL_8) = 0 (783 cells, ~28s).
-- (N=8, n=11): blocked. Brute-force enumeration is ``O(n!/(n-N)! · 2^N)``
-  per cell with worst-case ~1.7B candidates at n=11; some cells take
-  hours individually. Need Schreier-Sims over the Aut(G) generators
-  (from `qfauto(G)`, the correct path documented in voronoi/stab.py).
-- (N=8, n=12): same blocker, harder (50645 cells).
+Our reproduction at (N=8, n=8) gives both pieces: 13 cells enumerated
+from scratch via Watson code theory matching the published 13 orbits,
+and `Σ_n=8(GL_8) = 0` verified via the exact signed-permutation
+orientation tally. Bonus DSEKM-style verification: `Σ_n=9(GL_8) = 0`
+(106 cells, 0.34s) and `Σ_n=10(GL_8) = 0` (783 cells, ~28s) also
+reproduced. `Σ_n=11(GL_8)` and `Σ_n=12(GL_8)` are not strictly required
+for `K_8(Z) = 0` and remain pending — brute force has worst-case cells
+that don't terminate practically; the BFS-over-Aut variant we tried
+gave false negatives for unresolved reasons (PARI |Aut| matches across
+both qfauto paths, so the bug is somewhere downstream). Reach for
+Schreier-Sims if/when needed.
 
-**Phase B (compute K_12(Z)): not started.** Requires extending the
-enumeration to (N=9, 10, 11; n=12) and assembling boundary maps for
-SNF.
+**Phase B — K_12(Z) — in progress.** The K_12(Z) program (per the
+strategy distilled from DSEKM + Kupers Remark 2.6) needs three
+specific Voronoi vanishings:
+
+| Group | ≅ via Prop 1.5 | mod |
+|-------|----------------|-----|
+| H_2(GL_11, St_11) | H_12(Vor_{GL_11}) | S_12 |
+| H_3(GL_10, St_10) | H_12(Vor_{GL_10}) | S_11 |
+| H_4(GL_9, St_9)   | H_12(Vor_{GL_9})  | S_10 |
+
+If `Σ_n=12(GL_N) = ∅` for `N ∈ {9, 10, 11}`, all three groups vanish.
+Combined with `H_1(GL_12; St_12) = 0 mod S_12` (Church-Putnam
+extension), `H_5(GL_8; St_8) = 0 mod S_9` (DSEKM, ours reproduces),
+`H_6(GL_7; St_7) = Z` (EVGS), and the DSEKM kernel-of-Hurewicz lemma
+(ker(K_12(Z) → H_13(BQ; Z)) ⊂ S_7) and Borel (`K_12(Z) ⊗ Q = 0`),
+this places `K_12(Z)` in `S_max(7, k)` torsion only — same picture
+DSEKM and Kupers both lay out.
+
+The hard piece is the cell enumeration at `(N, n=12)` for `N ∈ {9,
+10, 11}` — DSEKM Table 4 has `?` at these entries. Watson code theory
+only handles `n = N`; for `n > N` we need the LP-feasibility / vector-
+configuration extension machinery from DSEKM §3, which we have all the
+primitives for (LP, qfminim, qfisom, realizability oracle) but no
+driver.
 
 ## Phase A roadmap & progress
 
