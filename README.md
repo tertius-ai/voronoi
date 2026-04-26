@@ -12,10 +12,17 @@ K_12(Z).
 
 ## Status
 
-**Phase A (reproduce K_8(Z) = 0): ~80%.** The (N=8, n=8) corner is
-fully reproduced from scratch — Watson cell enumeration matches the
-published 13 orbits and the orientation tally gives Σ_n=8(GL_8) = 0
-matching DSEKM Table 4. The (n=9..12) tallies are next.
+**Phase A (reproduce K_8(Z) = 0): ~85%.**
+
+- (N=8, n=8): cells reproduced from scratch via Watson theory (13/13);
+  orientation tally Σ_n=8(GL_8) = 0 matches DSEKM Table 4.
+- (N=8, n=9): orientation tally Σ_n=9(GL_8) = 0 (106 cells, 0.34s).
+- (N=8, n=10): orientation tally Σ_n=10(GL_8) = 0 (783 cells, ~28s).
+- (N=8, n=11): blocked. Brute-force enumeration is ``O(n!/(n-N)! · 2^N)``
+  per cell with worst-case ~1.7B candidates at n=11; some cells take
+  hours individually. Need Schreier-Sims over the Aut(G) generators
+  (from `qfauto(G)`, the correct path documented in voronoi/stab.py).
+- (N=8, n=12): same blocker, harder (50645 cells).
 
 **Phase B (compute K_12(Z)): not started.** Requires extending the
 enumeration to (N=9, 10, 11; n=12) and assembling boundary maps for
@@ -136,11 +143,14 @@ Pending in noether (Phase B prerequisites):
 
 ## What's next
 
-1. Extend `has_orientation_reversing_exact` to `n > N` (rectangular M)
-   so we can run the (N=8, n=9) tally as a sanity check.
-2. Run (N=8, n=9, 10, 11) tallies. Schreier-Sims pass for n=12
-   (50645 cells, brute force infeasible).
-3. Layer B foundations: LLL, Plesken-Pohst canonical form, Voronoi
-   neighbor algorithm.
+1. **Schreier-Sims over Aut(G) generators** to unblock n=11, n=12. The
+   correct PARI invocation `qfauto(G)` (no SHV) gives Aut(G) generators
+   directly; coset enumeration over those generators yields the
+   SetStab(±V) ∩ Aut(G) subgroup, which contains the cell's true
+   stabilizer. ~200-400 lines of focused work.
+2. Extend the orientation tally to N=9, 10, 11 once Phase A completes
+   (uses the published partial database for these N).
+3. **Phase B foundations**: LLL, Plesken-Pohst canonical form, Voronoi
+   neighbor algorithm. Each is a noether `api.lattice` addition.
 
 See `PLAN.md` for the full open-questions list.
