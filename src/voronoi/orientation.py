@@ -122,31 +122,31 @@ def has_orientation_reversing(cell: VoronoiCell) -> bool:
 
 
 def has_orientation_reversing_exact(cell: VoronoiCell) -> bool:
-    """Exact check via signed-permutation enumeration.
+    """Exact check via signed-permutation enumeration. Handles both
+    ``n = N`` (square M, basis cells) and ``n > N`` (over-determined M,
+    cells with more min vectors than lattice rank).
 
-    For each (π, ε) ∈ S_n × {±1}^n with sign(π) = -1, check whether
-    there exists ``g ∈ GL_N(Z)`` with ``g · v_i = ε_i v_{π(i)}`` for
-    all i. If yes, return True (orientation-reversing element exists).
-    If no odd permutation yields a valid g, return False.
+    For each candidate signed permutation `(π, ε)`, attempt to solve
+    `g · v_i = ε_i v_{π(i)}` with `g ∈ GL_N(Z)`. Return ``True`` on
+    finding any such `g` with `sign(π) = -1` (orientation-reversing).
 
-    Algorithm (vectorized): for each odd permutation π,
+    Algorithm:
 
-        W = V[:, π] · diag(ε)        (over all 2^n sign vectors, batched)
-        g_num = W · adj(V)           (integer)
-        g = g_num / det(V)           (integer iff divisible everywhere)
+    1. Find ``N`` linearly-independent rows of ``V`` (pivots).
+    2. Enumerate ordered ``N``-tuples of distinct positions in
+       ``{0, ..., n-1}`` (the image of pivots under π) and 2^N sign
+       choices for the pivots. ``g`` is uniquely determined by these.
+    3. Verify ``g`` is integer + unimodular.
+    4. For each non-pivot ``v_i``, compute ``g · v_i`` and look up
+       which ``±v_l`` it equals (if any). If consistent → full π
+       and ε determined; check ``sign(π)``.
 
-    Uses exact integer arithmetic (no FP rounding step beyond np.round
-    for adj(V), which is verified by V·adj(V) = det(V)·I).
+    For ``n = N``: no non-pivots; reduces to the simpler enumeration.
+    For ``n > N``: most candidates are pruned by the consistency check.
 
-    Runtime: ``O(n!/2 · 2^n · N^3)`` arithmetic ops, fully vectorized
-    over the 2^n sign axis. For n=N=8 this is ≤ ~1 sec per cell with
-    early termination.
-
-    Args:
-        cell: a :class:`VoronoiCell` with ``cell.dim == cell.lattice_rank``.
-
-    Returns:
-        ``True`` iff some odd signed permutation lifts to ``g ∈ Stab(σ)``.
+    Runtime is roughly ``O((n!/(n-N)!) · 2^N · N^3)`` with vectorization
+    over the 2^N sign axis. n=N=8: <1s. n=9, N=8: ~10s per cell with
+    early termination. n=12 needs Schreier-Sims (out of scope here).
     """
     import itertools
 
@@ -154,65 +154,96 @@ def has_orientation_reversing_exact(cell: VoronoiCell) -> bool:
 
     n = cell.dim
     N = cell.lattice_rank
-    if n != N:
+    if n < N:
+        raise ValueError(f"n < N not supported (got n={n}, N={N})")
+
+    V = np.array(cell.min_vectors, dtype=np.int64)        # (n, N)
+
+    # Find N linearly-independent rows of V (greedy from index 0).
+    pivot_indices: list[int] = []
+    chosen: list[np.ndarray] = []
+    for i in range(n):
+        trial = chosen + [V[i]]
+        if np.linalg.matrix_rank(np.array(trial, dtype=np.float64)) > len(chosen):
+            pivot_indices.append(i)
+            chosen.append(V[i])
+            if len(pivot_indices) == N:
+                break
+    if len(pivot_indices) != N:
         raise ValueError(
-            f"exact orientation check requires n = N (square M); got "
-            f"n={n}, N={N}"
+            f"V doesn't span Z^N: rank < N. n={n}, N={N}, found "
+            f"{len(pivot_indices)} LI rows"
         )
 
-    # V: (N, n), columns = min vectors v_i (column form).
-    V = np.array(cell.min_vectors, dtype=np.int64).T
-
-    det_V = int(round(float(np.linalg.det(V.astype(np.float64)))))
+    V_pivot = V[pivot_indices].T                          # (N, N), cols = pivot vectors
+    det_V = int(round(float(np.linalg.det(V_pivot.astype(np.float64)))))
     if det_V == 0:
-        raise ValueError("V is singular — cell's min vectors aren't LI")
-
-    # adj(V) = det(V) · V^{-1}, integer.
-    V_inv_float = np.linalg.inv(V.astype(np.float64))
-    adj_V = np.round(det_V * V_inv_float).astype(np.int64)
-    if not np.array_equal(V @ adj_V, det_V * np.eye(n, dtype=np.int64)):
-        raise RuntimeError("adj(V) integerization failed (FP precision issue)")
-
+        raise RuntimeError("V_pivot singular")
     abs_det = abs(det_V)
     sign_det = 1 if det_V > 0 else -1
 
-    # Pre-build all 2^n sign vectors as a (2^n, n) int64 matrix.
-    eps_all = np.empty((2 ** n, n), dtype=np.int64)
-    for k in range(2 ** n):
-        for i in range(n):
+    V_inv_float = np.linalg.inv(V_pivot.astype(np.float64))
+    adj_V = np.round(det_V * V_inv_float).astype(np.int64)
+    if not np.array_equal(V_pivot @ adj_V, det_V * np.eye(N, dtype=np.int64)):
+        raise RuntimeError("adj(V_pivot) integerization failed")
+
+    # Lookup for "is u = ±v_l for some l?".
+    v_lookup: dict[tuple[int, ...], tuple[int, int]] = {}
+    for i in range(n):
+        v_lookup[tuple(V[i].tolist())] = (i, 1)
+        v_lookup[tuple((-V[i]).tolist())] = (i, -1)
+
+    # All 2^N sign vectors for pivot signs.
+    eps_all = np.empty((2 ** N, N), dtype=np.int64)
+    for k in range(2 ** N):
+        for i in range(N):
             eps_all[k, i] = 1 if (k >> i) & 1 else -1
 
-    # Pre-build odd permutations as a list.
-    odd_perms: list[tuple[int, ...]] = []
-    for pi in itertools.permutations(range(n)):
-        inversions = 0
-        for i in range(n):
-            for j in range(i + 1, n):
-                if pi[i] > pi[j]:
-                    inversions += 1
-        if inversions % 2 == 1:
-            odd_perms.append(pi)
+    pivot_set = set(pivot_indices)
 
-    eye_n = np.eye(n, dtype=np.int64)
-
-    for pi in odd_perms:
-        V_pi = V[:, list(pi)]                        # (N, n)
-        # W_batch[k, :, j] = eps_all[k, j] * V_pi[:, j]
-        W_batch = V_pi[None, :, :] * eps_all[:, None, :]    # (2^n, N, n)
-        g_num = W_batch @ adj_V[None, :, :]                  # (2^n, N, N)
-        # Divisibility: g_num % abs_det == 0 entrywise.
+    # Enumerate ordered N-tuples (image of pivots under π).
+    for image_tuple in itertools.permutations(range(n), N):
+        V_image = V[list(image_tuple)].T                   # (N, N), cols = v_{image[k]}
+        W_batch = V_image[None, :, :] * eps_all[:, None, :]
+        g_num = W_batch @ adj_V[None, :, :]                 # (2^N, N, N)
         divisibility_ok = np.all(g_num % abs_det == 0, axis=(1, 2))
         if not divisibility_ok.any():
             continue
-        valid = np.where(divisibility_ok)[0]
-        # For valid k's: g_int = sign_det * (g_num[k] // abs_det).
-        for k in valid:
-            g_int = sign_det * (g_num[k] // abs_det)
-            # Verify exact: g_int · V == W_batch[k].
-            if not np.array_equal(g_int @ V, W_batch[k]):
+        valid_k = np.where(divisibility_ok)[0]
+        for k in valid_k:
+            g = sign_det * (g_num[k] // abs_det)
+            if not np.array_equal(g @ V_pivot, W_batch[k]):
                 continue
-            # |det g_int| must be 1 (unimodular).
-            det_g = int(round(float(np.linalg.det(g_int.astype(np.float64)))))
-            if abs(det_g) == 1:
+            det_g = int(round(float(np.linalg.det(g.astype(np.float64)))))
+            if abs(det_g) != 1:
+                continue
+
+            # Build full (π, ε) including non-pivots.
+            full_pi: list[int] = [-1] * n
+            full_eps: list[int] = [0] * n
+            for j in range(N):
+                full_pi[pivot_indices[j]] = image_tuple[j]
+                full_eps[pivot_indices[j]] = int(eps_all[k, j])
+
+            consistent = True
+            for i in range(n):
+                if i in pivot_set:
+                    continue
+                u = (g @ V[i]).tolist()
+                lookup = v_lookup.get(tuple(u))
+                if lookup is None:
+                    consistent = False
+                    break
+                full_pi[i], full_eps[i] = lookup
+
+            if not consistent or len(set(full_pi)) != n:
+                continue
+
+            inversions = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    if full_pi[i] > full_pi[j]:
+                        inversions += 1
+            if inversions % 2 == 1:
                 return True
     return False
