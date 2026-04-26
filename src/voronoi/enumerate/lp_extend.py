@@ -93,15 +93,12 @@ def extend_cell_by_one(
     if denom <= 0:
         raise RuntimeError(f"witness Gram has non-positive A[v]: {denom}")
 
-    # Sanity: A should be PD. PARI's qfminim crashes uncatchably on a
-    # non-PD or near-degenerate Gram, so verify via float Cholesky
-    # before calling.
-    try:
-        np.linalg.cholesky(A_np.astype(np.float64))
-    except np.linalg.LinAlgError:
-        # The LP gave us a non-PD witness — should be rare since
-        # realize_min_vector_set is supposed to verify PD before
-        # returning. Skip this cell rather than crash PARI.
+    # PARI's qfminim crashes uncatchably on non-PD or near-degenerate
+    # input. Use noether's exact integer PD test (FLINT-backed
+    # Sylvester) before calling.
+    from noether.api.lattice import is_positive_definite
+
+    if not is_positive_definite(A):
         return []
 
     sv = short_vectors(A, bound=norm_excess_factor * denom)
