@@ -37,7 +37,10 @@ def data_available() -> bool:
     return _DATA_ROOT.exists()
 
 
-@pytest.mark.parametrize("N,n,expected", list(EXPECTED_COUNTS.items()))
+@pytest.mark.parametrize(
+    "N,n,expected",
+    [(N, n, exp) for (N, n), exp in EXPECTED_COUNTS.items()],
+)
 def test_orbit_count_matches_paper(N, n, expected, data_available):
     if not data_available:
         pytest.skip("database not fetched — run scripts/fetch_database.sh")
