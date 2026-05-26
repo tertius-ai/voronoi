@@ -152,8 +152,17 @@ rather than the voronoi repo:
    `noether_engine::session` does not register a recovery callback.
    Fix needs either (a) Rust-side `cb_pari_err_recover` + `setjmp`
    landing pad in `engine/noether_engine/src/session.rs`, or
-   (b) subprocess-isolating `qfminim` calls. **Blocks layer B
-   validation past (N=8, n=8) cell 0 of the LP-extend pipeline.**
+   (b) subprocess-isolating `qfminim` calls. Empirically refined
+   2026-05-23: subprocess isolation per-cell lets cells 0-7 complete
+   at `factor=2` (recovering 28/106 of the n=9 layer); cells 8-12
+   still crash/timeout inside qfminim. Bumping `factor` to 8
+   triggers segfaults on every cell — so the gap of ~71 reachable
+   but norm-bound-blocked cells (median ratio 4.0, max 72.0) cannot
+   be closed without (a)/(b) or a third option (c) LLL pre-reduction
+   of `A_int` via FLINT before `qfminim`. The earlier diagnosis
+   "lp_extend has a polyhedral-incompleteness bug" was empirically
+   refuted — see `enumerate/lp_extend.py` docstring for the trace
+   pipeline and full decomposition.
 
 Resolved 2026-04-25 (see git history for prior text):
 

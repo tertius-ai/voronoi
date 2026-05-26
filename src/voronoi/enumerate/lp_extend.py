@@ -9,31 +9,67 @@ This is the basic building block for enumerating cells beyond the
 Watson `n = N` case — particularly the (N, n=12) cells we need at
 N ∈ {9, 10, 11} for the K_12(Z) program.
 
-**Status: WIP**, validated only on cell 0 of (N=8, n=8) (extends to 56
-candidate cells at n=9). The pipeline has two known blockers on cells
-1+ of (N=8, n=8):
+Empirical status (diagnostic suite, 2026-05-23)
+-----------------------------------------------
 
-(1) ``RuntimeError: realize_min_vector_set: did not converge in N
-    iterations`` on hard candidate extensions. Cell 9 hits this with
-    the default budget. Treated below as graceful degradation
-    (try/except → False) rather than tanking the whole layer; bumping
-    ``realizability_max_iterations`` reduces false negatives.
+The "add one min-vector at a time" model is **sound** for the
+(N=8, n=8) → (N=8, n=9) layer:
 
-(2) Uncatchable PARI error ``domain error in minim0: form is not
-    positive definite`` on certain LP-emitted witness Grams. The
-    integer Sylvester PD check in
-    :func:`noether.api.lattice.is_positive_definite` (FLINT-backed,
-    via :func:`noether.api.lattice.realize_min_vector_set`) is exact
-    and equivalent to PARI's :c:func:`qfgaussred_positive`. The
-    crash is upstream of that check: PARI's :c:func:`qfminim0`
-    pre-LLLs the form via :c:func:`lllgramint` and rejects the input
-    when the LLL'd basis comes back with fewer columns than the
-    original (``lg(*u) != lg(a)``) — which can fire on truly-PD but
-    ill-conditioned integer forms. Fixing this needs **(a)** Rust-
-    side ``pari_err`` catching with a longjmp landing pad in
-    :mod:`noether_engine.session`, or **(b)** subprocess isolation
-    of the qfminim call. Both are tracked in noether's lattice
-    backlog.
+  - All 106 published (N=8, n=9) orbits are simplicial-cone cofaces
+    (``|Min(τ)| = 9`` = cone dimension), so each one is reachable in
+    principle by adding a single vector to some 8-pair subset that
+    matches an (N=8, n=8) orbit. No polyhedral-incompleteness gap.
+
+Subprocess-isolated ``extend_layer`` over the 13 (N=8, n=8) cells at
+``norm_excess_factor=2`` produces 775 raw extensions across 8 cells
+(0–7); cells 8–12 crash or time out in PARI's lattice code (see below).
+qfisom dedup on centroid Grams (which phase 4 confirmed is a faithful
+invariant on this layer) collapses the 775 to 28 distinct orbits — a
+73.6 % gap against the 106 published.
+
+Per-target trace decomposes the 78 missing:
+
+  - 25 are reachable at ``norm_excess_factor=2`` (already in our 28);
+  - 73 need a larger bound — the extending vector ``u`` has
+    ``A_V[u] / denom`` distributed median 4.0, max 72.0
+    (15 in [2,3), 21 in [3,4), 9 in [4,5), 20 in [5,8), 5 in [8,16),
+    3 in [16,72]);
+  - 0 are blocked by LP false-negatives (hypothesis "LP rejects
+    realizable seed" never fires at the 300-iteration default);
+  - 7 sit on cells 8–12 alone — unreachable without those cells running.
+
+So the gap is dominated by the search-radius parameter, not by the
+model or by LP convergence.
+
+The PARI wall blocks bumping the bound
+--------------------------------------
+
+Raising ``norm_excess_factor`` doesn't work: at larger bounds,
+``qfminim``'s ``lllgramint`` preprocessing trips on ill-conditioned-
+but-PD integer Grams far more often, and the per-candidate LP loop
+multiplies the exposures. Validated 2026-05-23:
+``norm_excess_factor=8`` triggers PARI segfaults on every n=8 cell
+(cell 0 after ~26 min, cells 1–7 within seconds), recovering 0 orbits.
+``norm_excess_factor=2`` is the safe default until one of the noether-
+side fixes lands:
+
+  (a) Rust ``cb_pari_err_recover`` + setjmp landing pad in
+      :mod:`noether_engine.session` — proper recovery;
+  (b) subprocess isolation of the ``qfminim`` call — robust, slow;
+  (c) LLL pre-reduction of ``A_int`` via FLINT before handing to
+      ``qfminim``, so the ``lllgramint`` rejection path doesn't fire.
+
+Once one of those lands, ``norm_excess_factor=8`` should catch 67 of
+the 73 norm-bound-blocked cells (the [16,72] tail needs adaptive bound),
+pushing recovery from 28/106 to ≈ 92/99 reachable.
+
+Engineering hooks remaining
+---------------------------
+
+``RuntimeError: realize_min_vector_set: did not converge`` is wrapped
+``try/except → False`` per-candidate (graceful degradation), but per
+the trace this path never fires on the 99 reachable n=9 targets at the
+default 300-iteration budget — it's purely defensive.
 
 References:
     [DSEKM19] arXiv:1910.11598 §3 "Enumeration of configurations of vectors"
@@ -75,9 +111,15 @@ def extend_cell_by_one(
     Args:
         cell: input cell at (N, n).
         norm_excess_factor: bound for candidate u's norm relative to
-            min(A). Default 2 covers common cases; higher catches more
-            extensions but costs more LP calls.
+            min(A). Default 2 is the **only** safe value at present —
+            see the module docstring's "PARI wall" section. Larger
+            values trigger ``qfminim``/``lllgramint`` segfaults in the
+            per-candidate LP loop until one of the noether-engine
+            mitigations lands. Once the wall is gone, 8 is the natural
+            production bound and recovers ≈ 92/99 of (N=8, n=9).
         realizability_max_iterations: passed through to the LP loop.
+            Trace data shows the default catches every realizable
+            target on the (N=8, n=9) layer; no bump needed.
 
     Returns:
         A list of :class:`VoronoiCell` instances, each at (N, n+1).
@@ -118,7 +160,12 @@ def extend_cell_by_one(
     if not is_positive_definite(A):
         return []
 
-    sv = short_vectors(A, bound=norm_excess_factor * denom)
+    # backend="python": route through noether's pure-Python
+    # Fincke–Pohst enumerator. PARI's qfminim crashes uncatchably on
+    # the ill-conditioned LP-emitted Grams this pipeline produces at
+    # any norm_excess_factor > 2 (and even at 2 for some cells); the
+    # python backend is crash-immune and parity-tested.
+    sv = short_vectors(A, bound=norm_excess_factor * denom, backend="python")
 
     v_set: set[tuple[int, ...]] = set()
     for v in V:
