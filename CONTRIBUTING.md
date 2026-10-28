@@ -6,15 +6,23 @@ its coverage, or its independent verification easier to assess. Start with
 
 ## Ownership
 
-Noether 0.3.2 owns reusable exact mathematics in its public Rust facade and
-typed Python domains. Changes to lattice enumeration, minimum realization,
-linear algebra, group algorithms, or certificate verification belong there.
-Do not introduce a second mathematical implementation in Voronoi's Python code.
+Noether 0.3.2 supplies broadly reusable exact mathematics through its public
+Rust facade and typed Python domains: linear algebra, lattice operations,
+group algorithms, and general feasibility operations. Add functionality there
+when it has independent uses beyond this project. Use its public operations
+rather than implementing another arithmetic or elimination kernel in Python.
 
 Voronoi owns cell interpretation, published labels, Watson and incidence
 playbooks, exact orbit gluing, orientation, coverage manifests, storage, and
-research-specific compiled loops. The Python application and Rust worker must
-use the same Noether release. Avoid `noether.api` and private Noether imports.
+research-specific compiled loops. Voronoi also owns its constraint models,
+certificate schemas, historical format adapters, and problem-specific proof
+checks. Keep the substantial checks in the Rust worker and use Noether's
+exact matrices, vectors, and lattice operations. A project certificate loader
+does not require constructing a Noether certificate object. Generic checking
+operations may belong in Noether when they are independently useful.
+
+The Python application and Rust worker must use the same Noether release.
+Avoid `noether.api` and private Noether imports.
 
 ## Evidence and tests
 

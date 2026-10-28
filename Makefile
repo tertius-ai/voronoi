@@ -36,6 +36,6 @@ test-corpus: engine check-data
 	VORONOI_RUN_CENSUS_REGRESSION=1 .venv/bin/python -m pytest -q
 
 lint:
-	.venv/bin/ruff check src tests
+	.venv/bin/ruff check src tests scripts
 	cargo fmt --all -- --check
 	@for script in scripts/*.sh; do bash -n "$$script"; done

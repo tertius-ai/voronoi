@@ -1,0 +1,79 @@
+{
+  "type": "voronoi/positive-audit-validation@1",
+  "date": "2026-10-28",
+  "noether_version": "0.3.2",
+  "scope": {
+    "ambient_rank": 8,
+    "cone_dimension": 10,
+    "lower_index": 0,
+    "projective_degree": 9
+  },
+  "historical_terminal_accounting": {
+    "shards": 64,
+    "representatives": 924637,
+    "completed": 453,
+    "nonrealizable": 924184
+  },
+  "positive_results": {
+    "source_shells": 453,
+    "gram_witnesses_replayed": 453,
+    "exact_catalog_transports_replayed": 453,
+    "reference_orbits_checked_distinct": 783,
+    "distinct_reference_orbits_hit": 453,
+    "reference_orbits_not_hit": 330,
+    "unresolved_positive_shells": 0
+  },
+  "evidence": {
+    "availability": "Local ignored artifacts; this record is not the certificate bundle.",
+    "directory": "artifacts/n8-r10/audit-noether-0.3.2-20261028-final",
+    "summary_sha256": "2430c70153ef56702f24c0de8fccb2735411e70fa80a91aa761601810f7e2905",
+    "source_snapshot_sha256": "9a132f2a2d2299f413e925a7280969b74292c06e9d804cd2832826b889af63d5",
+    "catalog_report_sha256": "d62f8ad00a7f0c0bb38e6ebd6c8463eded08baa964ae40a39513357047322017",
+    "worker_sha256": "7c50576558a9f0cb3ac90ad7e3c8ae1e54fc5676fd474cd47b53d8c60a5275c8",
+    "native_python_extension_sha256": "0d8f92583d46463a206784e66a4bded8198152167f4a86ce110fd60662e55664",
+    "independent_replay_receipt": "artifacts/n8-r10/audit-noether-0.3.2-20261028-final-replay.json",
+    "independent_replay_receipt_sha256": "717724ab6626298c05e27372737ef3c80f2e8d2bcae88412f6cd14f71ea1e6e0",
+    "evidence_files_checked": 456,
+    "source_witness_origins": {
+      "audit-noether-0.3.2-20261028-reference-witnesses": 452,
+      "audit-noether-0.3.2-20261028-witnesses": 1
+    }
+  },
+  "method": "Fresh reference-coordinate realizations, exact Gram pullback, and original-coordinate shell enumeration; one witness came from the direct-coordinate pass. The final pass replayed all 453 saved source Grams and retained each original file hash.",
+  "reference_revision": "d4c7b40ad2c95850d16160b347953dbaa9241486",
+  "reference_file_sha256": "75002025e383b40240ebbd6e8fc23c3e957357eb142142182ea3032959706e0c",
+  "historical_orbit_content_sha256": "55bb934881edc976981f5b3e9a711a6a007ba316e80bfe7ce5fab0ee185be38a",
+  "checks": [
+    {
+      "command": "make doctor",
+      "result": "passed"
+    },
+    {
+      "command": "make test-corpus",
+      "result": "passed",
+      "tests": 83,
+      "skipped": 0
+    },
+    {
+      "command": "make test-rust",
+      "result": "passed",
+      "tests": 9
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "python scripts/verify_positive_audit.py artifacts/n8-r10/audit-noether-0.3.2-20261028-final",
+      "result": "passed",
+      "source_gram_witnesses": 453,
+      "catalog_transports": 453
+    }
+  ],
+  "runtime_note": "Checks and audit used a copied verified Noether 0.3.2 runtime while the sibling development extension was rebuilt independently. Rust checks used the pinned sibling 0.3.2 source.",
+  "existing_historical_artifacts_modified": false,
+  "historical_negative_certificates_replayed": false,
+  "all_historical_orbit_reduction_transports_replayed": false,
+  "global_census_complete": false,
+  "degree12_theorem_complete": false
+}

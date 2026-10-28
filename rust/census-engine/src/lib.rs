@@ -15,13 +15,16 @@ use anyhow::{bail, Context, Result};
 use noether::groups::{visit_double_coset_triangle, DoubleCoset, Permutation, PermutationGroup};
 use noether::linalg::{
     IntegralLineConfiguration, Matrix, MinimumCompletion, MinimumCompletionCertificate,
-    MinimumRealization,
+    MinimumRealization, MinimumVectorConfiguration,
 };
 use noether::{Integer, SemanticType, Z};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 mod candidate_artifact;
+mod catalog_match;
+mod ledger_replay;
+mod negative_certificate;
 mod orbit_artifact;
 
 use candidate_artifact::CandidateSpill;
@@ -29,11 +32,24 @@ pub use candidate_artifact::{
     CandidateArtifactSummary, CANDIDATE_ARTIFACT_SCHEMA, CANDIDATE_FOOTER_SCHEMA,
     CANDIDATE_RECORD_SCHEMA, CANDIDATE_SUMMARY_SCHEMA,
 };
+pub use catalog_match::{
+    match_catalog, CatalogEntry, CatalogMatchReport, CatalogMatchTask, CATALOG_MATCH_REPORT_SCHEMA,
+    CATALOG_MATCH_TASK_SCHEMA,
+};
+pub use ledger_replay::{
+    replay_ledger_stream, LedgerReplayTask, LEDGER_REPLAY_REPORT_SCHEMA, LEDGER_REPLAY_TASK_SCHEMA,
+};
+pub use negative_certificate::{
+    check_negative_batch, check_negative_proof, CheckedNegativeProof, NegativeCheckReport,
+    NegativeCheckTask, NegativeProofInput, NEGATIVE_CHECK_REPORT_SCHEMA,
+    NEGATIVE_CHECK_TASK_SCHEMA,
+};
 pub use orbit_artifact::{
-    key_candidate_artifact, reduce_keyed_artifact, OrbitKeyReport, OrbitKeyTask,
-    OrbitReductionReport, OrbitReductionTask, KEYED_ARTIFACT_SCHEMA, KEYED_FOOTER_SCHEMA,
-    KEYED_RECORD_SCHEMA, ORBIT_ARTIFACT_SCHEMA, ORBIT_FINGERPRINT_SCHEMA, ORBIT_FOOTER_SCHEMA,
-    ORBIT_KEY_REPORT_SCHEMA, ORBIT_KEY_TASK_SCHEMA, ORBIT_RECORD_SCHEMA,
+    audit_orbit_artifact, key_candidate_artifact, reduce_keyed_artifact, OrbitAuditReport,
+    OrbitAuditTask, OrbitKeyReport, OrbitKeyTask, OrbitReductionReport, OrbitReductionTask,
+    KEYED_ARTIFACT_SCHEMA, KEYED_FOOTER_SCHEMA, KEYED_RECORD_SCHEMA, ORBIT_ARTIFACT_SCHEMA,
+    ORBIT_AUDIT_REPORT_SCHEMA, ORBIT_AUDIT_TASK_SCHEMA, ORBIT_FINGERPRINT_SCHEMA,
+    ORBIT_FOOTER_SCHEMA, ORBIT_KEY_REPORT_SCHEMA, ORBIT_KEY_TASK_SCHEMA, ORBIT_RECORD_SCHEMA,
     ORBIT_REDUCTION_REPORT_SCHEMA, ORBIT_REDUCTION_TASK_SCHEMA,
 };
 
@@ -44,7 +60,7 @@ pub const REPORT_SCHEMA: &str = "voronoi/coface-pair-rank-report@2";
 /// Input schema for an independently bounded fixed-rank completion batch.
 pub const COMPLETION_TASK_SCHEMA: &str = "voronoi/completion-batch-task@2";
 /// Output schema for an independently bounded fixed-rank completion batch.
-pub const COMPLETION_REPORT_SCHEMA: &str = "voronoi/completion-batch-report@3";
+pub const COMPLETION_REPORT_SCHEMA: &str = "voronoi/completion-batch-report@4";
 /// Hard ceiling on report-retained or spill-buffered candidate configurations.
 pub const MAX_CANDIDATE_CAP: usize = 100_000;
 /// Hard ceiling on completions sharing one process.
@@ -235,7 +251,29 @@ pub struct CompletionBatchTask {
     pub candidates: Vec<CompletionCandidateInput>,
 }
 
-/// One three-way completion result.
+/// Replayable Gram witness for a positive completion.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct MinimumShellWitness {
+    /// Exact positive-definite integral Gram matrix in the completed coordinates.
+    pub gram_matrix: Vec<Vec<String>>,
+    /// Exact squared minimum; replay also checks that no extra minimal lines occur.
+    pub minimum: String,
+}
+
+impl From<&MinimumVectorConfiguration> for MinimumShellWitness {
+    fn from(value: &MinimumVectorConfiguration) -> Self {
+        Self {
+            gram_matrix: value
+                .gram_matrix()
+                .rows()
+                .map(|row| row.into_iter().map(|entry| entry.to_string()).collect())
+                .collect(),
+            minimum: value.minimum().to_string(),
+        }
+    }
+}
+
+/// One three-way completion result, including a replayable positive witness.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CompletionCandidateResult {
     /// Input candidate identifier.
@@ -246,10 +284,13 @@ pub struct CompletionCandidateResult {
     pub detail: Option<String>,
     /// Digest of the canonical Noether evidence value.
     pub evidence_sha256: String,
-    /// Full canonical Noether evidence JSON, already verified by the engine.
+    /// Canonical Noether value, already verified in memory. A positive value's
+    /// identity omits its Gram, which is retained separately below.
     pub evidence_canonical_json: String,
     /// Complete minimum shell for a positive result.
     pub completed_vectors: Option<Vec<Vec<i64>>>,
+    /// Positive witness omitted by Noether's configuration-identity serialization.
+    pub realization_witness: Option<MinimumShellWitness>,
 }
 
 /// Complete terminal report for one small completion process.
@@ -838,82 +879,90 @@ pub fn complete_candidate_batch(task: &CompletionBatchTask) -> Result<Completion
             input.candidate_id
         );
         let seed = configuration(&input.vectors, input.vectors[0].len())?;
-        let (status, detail, completed_vectors, evidence_bytes) = if task.strategy == "fixed_rank" {
-            let result = seed
-                .complete_minimum(task.max_iterations)
-                .context("fixed-rank candidate completion failed")?;
-            result
-                .verify()
-                .context("fixed-rank completion evidence did not verify")?;
-            let (detail, completed_vectors) = match result.status() {
-                "completed" => {
-                    let realization = result
-                        .realization()
-                        .context("completed result omitted its realization")?;
-                    (None, Some(i64_vectors(realization.configuration())?))
-                }
-                "nonrealizable" => {
-                    let certificate = result
-                        .certificate()
-                        .context("negative result omitted its certificate")?;
-                    (Some(certificate.kind().to_owned()), None)
-                }
-                "inconclusive" => {
-                    let diagnostic = result
-                        .diagnostic()
-                        .context("inconclusive result omitted its diagnostic")?;
-                    (Some(diagnostic.reason().to_owned()), None)
-                }
-                status => bail!("unknown completion status {status}"),
+        let (status, detail, completed_vectors, evidence_bytes, realization_witness) =
+            if task.strategy == "fixed_rank" {
+                let result = seed
+                    .complete_minimum(task.max_iterations)
+                    .context("fixed-rank candidate completion failed")?;
+                result
+                    .verify()
+                    .context("fixed-rank completion evidence did not verify")?;
+                let (detail, completed_vectors) = match result.status() {
+                    "completed" => {
+                        let realization = result
+                            .realization()
+                            .context("completed result omitted its realization")?;
+                        (None, Some(i64_vectors(realization.configuration())?))
+                    }
+                    "nonrealizable" => {
+                        let certificate = result
+                            .certificate()
+                            .context("negative result omitted its certificate")?;
+                        (Some(certificate.kind().to_owned()), None)
+                    }
+                    "inconclusive" => {
+                        let diagnostic = result
+                            .diagnostic()
+                            .context("inconclusive result omitted its diagnostic")?;
+                        (Some(diagnostic.reason().to_owned()), None)
+                    }
+                    status => bail!("unknown completion status {status}"),
+                };
+                (
+                    result.status().to_owned(),
+                    detail,
+                    completed_vectors,
+                    result.canonical_bytes()?,
+                    result.realization().map(MinimumShellWitness::from),
+                )
+            } else {
+                let result = seed
+                    .realize_minimum(task.max_iterations)
+                    .context("exact-shell candidate realization failed")?;
+                result
+                    .verify()
+                    .context("exact-shell realization evidence did not verify")?;
+                let (status, detail, completed_vectors) = match result.status() {
+                    "realized" => {
+                        let realization = result
+                            .realization()
+                            .context("realized result omitted its realization")?;
+                        (
+                            "completed".to_owned(),
+                            None,
+                            Some(i64_vectors(realization.configuration())?),
+                        )
+                    }
+                    "nonrealizable" => {
+                        let certificate = result
+                            .certificate()
+                            .context("negative result omitted its certificate")?;
+                        (
+                            "nonrealizable".to_owned(),
+                            Some(certificate.kind().to_owned()),
+                            None,
+                        )
+                    }
+                    "inconclusive" => {
+                        let diagnostic = result
+                            .diagnostic()
+                            .context("inconclusive result omitted its diagnostic")?;
+                        (
+                            "inconclusive".to_owned(),
+                            Some(diagnostic.reason().to_owned()),
+                            None,
+                        )
+                    }
+                    status => bail!("unknown realization status {status}"),
+                };
+                (
+                    status,
+                    detail,
+                    completed_vectors,
+                    result.canonical_bytes()?,
+                    result.realization().map(MinimumShellWitness::from),
+                )
             };
-            (
-                result.status().to_owned(),
-                detail,
-                completed_vectors,
-                result.canonical_bytes()?,
-            )
-        } else {
-            let result = seed
-                .realize_minimum(task.max_iterations)
-                .context("exact-shell candidate realization failed")?;
-            result
-                .verify()
-                .context("exact-shell realization evidence did not verify")?;
-            let (status, detail, completed_vectors) = match result.status() {
-                "realized" => {
-                    let realization = result
-                        .realization()
-                        .context("realized result omitted its realization")?;
-                    (
-                        "completed".to_owned(),
-                        None,
-                        Some(i64_vectors(realization.configuration())?),
-                    )
-                }
-                "nonrealizable" => {
-                    let certificate = result
-                        .certificate()
-                        .context("negative result omitted its certificate")?;
-                    (
-                        "nonrealizable".to_owned(),
-                        Some(certificate.kind().to_owned()),
-                        None,
-                    )
-                }
-                "inconclusive" => {
-                    let diagnostic = result
-                        .diagnostic()
-                        .context("inconclusive result omitted its diagnostic")?;
-                    (
-                        "inconclusive".to_owned(),
-                        Some(diagnostic.reason().to_owned()),
-                        None,
-                    )
-                }
-                status => bail!("unknown realization status {status}"),
-            };
-            (status, detail, completed_vectors, result.canonical_bytes()?)
-        };
         match status.as_str() {
             "completed" => completed += 1,
             "nonrealizable" => nonrealizable += 1,
@@ -931,6 +980,7 @@ pub fn complete_candidate_batch(task: &CompletionBatchTask) -> Result<Completion
             evidence_sha256: format!("{:x}", Sha256::digest(&evidence_bytes)),
             evidence_canonical_json,
             completed_vectors,
+            realization_witness,
         });
     }
     let report = CompletionBatchReport {
@@ -1126,6 +1176,8 @@ mod tests {
         assert_eq!(first.completed, 1);
         assert_eq!(first.nonrealizable, 1);
         assert_eq!(first.inconclusive, 0);
+        assert!(first.results[0].realization_witness.is_some());
+        assert!(first.results[1].realization_witness.is_none());
         first.verify_counts().unwrap();
 
         let exact = complete_candidate_batch(&CompletionBatchTask {

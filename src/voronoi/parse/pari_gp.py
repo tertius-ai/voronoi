@@ -9,11 +9,11 @@ File format (per file, one cell orbit per line, plus a final summary):
     ListSHV_n{N}_rank{n} = [U1,U2,...,Uk]
 
 Each ``Ui`` is an integer matrix, written in GP nested-list syntax.
-The outer list has ``dim`` entries (= cell dimension = ``n`` in the
-filename); each inner list has ``lattice_rank`` entries (= N).
-
-So rows of ``Ui`` are the min vectors of the cell, and there are
-``dim`` of them. We return a list of ``VoronoiCell`` instances.
+Each inner list has ``N`` coordinates. The outer list consists of primitive
+minimum-vector representatives modulo sign. The filename's ``rank{n}``
+declares the cone dimension, the rank of their forms ``v v^t``; the number
+of rows can differ from that rank. The projective cell has dimension ``n-1``.
+We return a list of ``VoronoiCell`` instances.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ _ASSIGN_RE = re.compile(r"^(?P<name>U\d+)\s*=\s*(?P<rhs>.+)$")
 
 
 def _parse_filename(path: Path) -> tuple[int, int]:
-    """Extract (lattice_rank, cell_dim) from a ListSHV filename."""
+    """Extract (ambient rank, cone dimension) from a ListSHV filename."""
     m = _FILENAME_RE.match(path.name)
     if m is None:
         raise ValueError(

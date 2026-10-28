@@ -1,0 +1,93 @@
+{
+  "type": "voronoi/ledger-replay-validation@1",
+  "date": "2026-10-28",
+  "noether_version": "0.3.2",
+  "scope": {
+    "ambient_rank": 8,
+    "cone_dimension": 10,
+    "projective_degree": 9,
+    "lower_index": 0,
+    "strategy": "exact_shell",
+    "relative_input": "historical lower-000 orbit artifact"
+  },
+  "result": {
+    "representatives": 924637,
+    "positive_grams_reverified": 453,
+    "historical_negative_proofs_replayed": 924184,
+    "inconclusive": 0,
+    "negative_kinds": {
+      "homogeneous_minimum_at_least_one": 777,
+      "nonpositive_outsider_margin": 923407
+    },
+    "normalizations": {
+      "homogeneous": 777,
+      "scaled-1000000": 2,
+      "unscaled": 923405
+    }
+  },
+  "method": "Voronoi-owned native wire adapter and proof checker. Noether supplies exact rational arithmetic, matrix products, RREF, and positive lattice-shell enumeration. No realization solver is run for negative replay.",
+  "binding": "Read-only SQLite rows are merged into four disjoint index partitions. Every verdict is bound to its original hashed orbit representative; source evidence hashes, stream digests, positive Grams, terminal counts, and saved receipt coverage are checked.",
+  "implementation": {
+    "checker": "rust/census-engine/src/negative_certificate.rs",
+    "checker_sha256": "d51dce74781f89a93610a0870248dddd6db8e56d21a62b59e2b2a20b1bae5ade",
+    "ledger_binding": "rust/census-engine/src/ledger_replay.rs",
+    "ledger_binding_sha256": "de5a078a56cda088e66da019bf13385db6c03f372959b04c5637232b37fee3dd",
+    "noether_source_changed_for_this_work": false,
+    "new_dependencies_added": false
+  },
+  "evidence": {
+    "availability": "Local ignored artifacts; this record is not the evidence bundle.",
+    "directory": "artifacts/n8-r10/ledger-replay-noether-0.3.2-20261028",
+    "summary_sha256": "1fe3aa25529d2c081cb817717b5b8bd6875ff4de09185b9161bb7e4c614c5523",
+    "worker_sha256": "275894e6b24e57330e86edc3e5a553ed3f63509d4da6d7a15244642d8ca97615",
+    "positive_witness_file_sha256": "c464b77a25bd9493d69fd5ec89a4f52540d6a8c4407267d8613360af9d8907bc",
+    "receipt_verification_file": "artifacts/n8-r10/ledger-replay-noether-0.3.2-20261028-receipt-verification.json",
+    "receipt_verification_sha256": "33263bcabac7cfb1c16ff1250e9c885f3d456cbb78d92074b44716c2fc3a160d",
+    "partitions": 4,
+    "per_partition_reports_sha256": {
+      "report-0.json": "f5f9e5fa039f2ed477e22fac3ffdd1d5ce61595988c578a765f9a690aa547435",
+      "report-1.json": "c5515646b0779272a302b454de88aedcb7e56bab2fe2ebf6409234503e4fae7c",
+      "report-2.json": "1a1f3a0dadc0ac7886b0e19331aaf7a83d9476d93f0ac6173d9478b473c54ca2",
+      "report-3.json": "7c3baf74d522746fb8e50a24785ffcbdce16bf7fa2062b87e183c3c5d914f0c0"
+    }
+  },
+  "checks": [
+    {
+      "command": "make doctor",
+      "result": "passed"
+    },
+    {
+      "command": "make test-rust",
+      "result": "passed",
+      "tests": 9
+    },
+    {
+      "command": "make test-corpus",
+      "result": "passed",
+      "tests": 109,
+      "skipped": 0
+    },
+    {
+      "command": "pytest -q tests/test_ledger_replay.py tests/test_negative_certificate.py",
+      "result": "passed",
+      "tests": 22,
+      "note": "Includes receipt tampering, pipe backpressure, timeout, and cancellation regressions added after the full corpus suite collected."
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "verify_replay_receipts over all four saved partitions",
+      "result": "passed",
+      "receipts": 924637
+    }
+  ],
+  "distinct_python_tests_validated": 113,
+  "historical_sqlite_and_orbit_sources_written": false,
+  "all_saved_minimum_verdicts_replayed": true,
+  "historical_negative_certificates_replayed": true,
+  "coface_pair_generation_replayed": false,
+  "global_census_complete": false,
+  "next_step": "Independently audit or regenerate earlier coface-pair generation, then extend and merge across all lower cells."
+}

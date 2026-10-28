@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Read};
 
 use anyhow::{Context, Result};
 use voronoi_census_engine::{
-    complete_candidate_batch, enumerate_coface_pairs, key_candidate_artifact,
-    reduce_keyed_artifact, CofacePairTask, CompletionBatchTask, OrbitKeyTask, OrbitReductionTask,
-    COMPLETION_TASK_SCHEMA, ORBIT_KEY_TASK_SCHEMA, ORBIT_REDUCTION_TASK_SCHEMA, TASK_SCHEMA,
+    audit_orbit_artifact, check_negative_batch, complete_candidate_batch, enumerate_coface_pairs,
+    key_candidate_artifact, match_catalog, reduce_keyed_artifact, replay_ledger_stream,
+    CatalogMatchTask, CofacePairTask, CompletionBatchTask, LedgerReplayTask, NegativeCheckTask,
+    OrbitAuditTask, OrbitKeyTask, OrbitReductionTask, CATALOG_MATCH_TASK_SCHEMA,
+    COMPLETION_TASK_SCHEMA, NEGATIVE_CHECK_TASK_SCHEMA, ORBIT_AUDIT_TASK_SCHEMA,
+    ORBIT_KEY_TASK_SCHEMA, ORBIT_REDUCTION_TASK_SCHEMA, TASK_SCHEMA,
 };
 
 fn main() -> Result<()> {
@@ -18,6 +21,22 @@ fn main() -> Result<()> {
                 "version": env!("CARGO_PKG_VERSION"),
                 "noether_version": noether::VERSION,
             }),
+        )?;
+        println!();
+        return Ok(());
+    }
+    if arguments == ["--replay-ledger-stream"] {
+        let mut source = BufReader::new(io::stdin().lock());
+        let mut header = Vec::new();
+        source.read_until(b'\n', &mut header)?;
+        anyhow::ensure!(
+            header.ends_with(b"\n"),
+            "ledger replay task is not newline terminated"
+        );
+        let task: LedgerReplayTask = serde_json::from_slice(&header)?;
+        serde_json::to_writer(
+            io::stdout(),
+            &replay_ledger_stream(&task, &header, &mut source)?,
         )?;
         println!();
         return Ok(());
@@ -52,6 +71,18 @@ fn main() -> Result<()> {
         ORBIT_REDUCTION_TASK_SCHEMA => {
             let task: OrbitReductionTask = serde_json::from_value(payload)?;
             serde_json::to_value(reduce_keyed_artifact(&task)?)?
+        }
+        CATALOG_MATCH_TASK_SCHEMA => {
+            let task: CatalogMatchTask = serde_json::from_value(payload)?;
+            serde_json::to_value(match_catalog(&task)?)?
+        }
+        ORBIT_AUDIT_TASK_SCHEMA => {
+            let task: OrbitAuditTask = serde_json::from_value(payload)?;
+            serde_json::to_value(audit_orbit_artifact(&task)?)?
+        }
+        NEGATIVE_CHECK_TASK_SCHEMA => {
+            let task: NegativeCheckTask = serde_json::from_value(payload)?;
+            serde_json::to_value(check_negative_batch(&task)?)?
         }
         _ => anyhow::bail!("unsupported census-engine task type {task_type}"),
     };

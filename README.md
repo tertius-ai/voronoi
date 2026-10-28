@@ -4,9 +4,11 @@ Exact Voronoi-complex computations for research on $K_{12}(\mathbb Z)$,
 built on [Noether 0.3.2](https://github.com/tertius-ai/noether/tree/v0.3.2).
 The degree-12 census and the final K-theory argument remain unfinished.
 
-The research targets are cone dimension $r=12$ in ambient lattice ranks
+The degree-12 research targets have cone dimension $r=13$ in ambient lattice ranks
 $N=9,10,11$. Here $r=\operatorname{rank}\{vv^t\}$ and $s$ is the number
-of minimum-vector pairs; configurations need not satisfy $r=s$.
+of minimum-vector pairs; configurations need not satisfy $r=s$. Projectivizing
+the cone gives cellular degree $r-1$. See the [grading audit](docs/mathematical-grading.md)
+for the degree shift and the theorem-level assumptions still to resolve.
 
 ## What works
 
@@ -27,6 +29,18 @@ September 2026 audit closed its timeout tail. This is a partial research stage;
 the complete rank-eight census has not been reconstructed from scratch.
 The [historical summary](validation/historical-n8-r10.json) identifies the
 local evidence, which is not bundled with a clone.
+
+The [October 2026 positive audit](validation/n8-r10-positive-audit-2026-10-28.json)
+re-certified all 453 shells under Noether 0.3.2, retained replayable Gram
+witnesses, and matched them to 453 distinct orbits in the published 783-cell
+catalog. The other 330 reference orbits lie outside this lower-cell result.
+The [orbit evidence audit](validation/n8-r10-orbit-audit-2026-10-28.json)
+regenerated all 2,007,344 candidate fingerprints identically and replayed
+all 1,082,707 saved orbit transports. The subsequent
+[full ledger replay](validation/n8-r10-ledger-replay-2026-10-28.json) checked
+all 924,184 historical negative proofs and reverified the 453 positive Grams.
+Its checker lives in Voronoi and uses Noether 0.3.2 exact algebra. Earlier
+coface-pair generation and coverage across other lower cells remain open.
 
 See the [research plan](PLAN.md) for remaining work and the
 [bibliography](BIBLIOGRAPHY.md) for mathematical references.

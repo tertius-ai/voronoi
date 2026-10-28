@@ -4,8 +4,11 @@ Read `README.md` for setup, `CONTRIBUTING.md` for the evidence contract, and
 `PLAN.md` for remaining research. The repository targets Noether 0.3.2 from
 the sibling `../noether` checkout in both languages.
 
-- Reusable mathematics belongs in Noether's public Rust facade and typed
-  Python domains. Voronoi owns research-specific enumeration and accounting.
+- Broadly reusable mathematical operations belong in Noether's public Rust
+  facade and typed Python domains. Voronoi owns its problem-specific constraint
+  models, certificate formats, proof interpretation and replay, enumeration,
+  and accounting. Implement project checkers here using public Noether exact
+  operations; propose Noether additions only for independently useful gaps.
 - Keep ambient rank `N`, perfection rank `r`, and ray count `s` distinct.
 - Native exact evidence is required for accepted mathematical verdicts.
   Timeouts, heuristic filters, and work limits never certify nonexistence.

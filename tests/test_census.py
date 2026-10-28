@@ -29,6 +29,7 @@ from voronoi.enumerate.census_engine import (
     run_coface_pair_task,
     run_completion_batch_task,
     verify_candidate_artifact,
+    verify_positive_completion_witness,
 )
 from voronoi.enumerate.completion_ledger import (
     run_completion_shard,
@@ -45,6 +46,41 @@ from voronoi.enumerate.orbit_reduction import (
     verify_orbit_artifact,
 )
 from voronoi.parse import parse_list_shv_file
+
+
+def test_positive_identity_bytes_cannot_replace_a_replayable_gram_witness() -> None:
+    result = {
+        "status": "completed",
+        "completed_vectors": [[0, 1], [1, 0], [1, 1]],
+        "realization_witness": {
+            "gram_matrix": [["2", "-1"], ["-1", "2"]],
+            "minimum": "2",
+        },
+    }
+    verify_positive_completion_witness(result)
+    with pytest.raises(ValueError, match="omitted its Gram witness"):
+        verify_positive_completion_witness({**result, "realization_witness": None})
+    with pytest.raises(ValueError, match="wrong minimum"):
+        verify_positive_completion_witness(
+            {
+                **result,
+                "realization_witness": {
+                    **result["realization_witness"],
+                    "minimum": "1",
+                },
+            }
+        )
+    with pytest.raises(ValueError, match="different complete shell"):
+        verify_positive_completion_witness(
+            {
+                **result,
+                "realization_witness": {
+                    "gram_matrix": [["1", "0"], ["0", "1"]],
+                    "minimum": "1",
+                },
+            }
+        )
+
 
 _DATA = (
     Path(__file__).parent.parent
@@ -485,6 +521,25 @@ def test_bounded_rust_coface_task_has_terminal_coverage(tmp_path: Path) -> None:
     call_log = tmp_path / "fake-completion-calls.jsonl"
     upgrade_engine = tmp_path / "upgrade-engine"
     first_candidate_id = str(candidates[0]["candidate_id"])
+    native_results = {
+        row["candidate_id"]: {
+            key: row[key]
+            for key in (
+                "candidate_id",
+                "status",
+                "detail",
+                "evidence_sha256",
+                "evidence_canonical_json",
+                "completed_vectors",
+                "realization_witness",
+            )
+        }
+        for line in completion_path.read_text().splitlines()
+        if (row := json.loads(line)).get("status") in {"completed", "nonrealizable"}
+    }
+    assert set(native_results) == {
+        candidate["candidate_id"] for candidate in candidates
+    }
     upgrade_engine.write_text(
         "#!/usr/bin/env python3\n"
         "import hashlib\n"
@@ -497,14 +552,17 @@ def test_bounded_rust_coface_task_has_terminal_coverage(tmp_path: Path) -> None:
         "task = json.load(sys.stdin)\n"
         "limit = task['max_iterations']\n"
         "results = []\n"
+        f"native_results = {native_results!r}\n"
         "for candidate in task['candidates']:\n"
         f"    with pathlib.Path({str(call_log)!r}).open('a') as log:\n"
         "        log.write(json.dumps(candidate['candidate_id']) + '\\n')\n"
-        f"    completed = candidate['candidate_id'] == {first_candidate_id!r} or limit >= 2\n"
-        "    status = 'completed' if completed else 'inconclusive'\n"
-        "    evidence = json.dumps(['test-evidence', candidate['candidate_id'], limit], separators=(',', ':'))\n"
-        "    results.append({'candidate_id': candidate['candidate_id'], 'status': status, 'detail': None if completed else 'test work limit', 'evidence_sha256': hashlib.sha256(evidence.encode()).hexdigest(), 'evidence_canonical_json': evidence, 'completed_vectors': candidate['vectors'] if completed else None})\n"
-        "payload = {'type': 'voronoi/completion-batch-report@3', 'noether_contract': task['noether_contract'], 'strategy': task['strategy'], 'max_iterations': limit, 'results': results, 'completed': sum(row['status'] == 'completed' for row in results), 'nonrealizable': 0, 'inconclusive': sum(row['status'] == 'inconclusive' for row in results)}\n"
+        f"    terminal = candidate['candidate_id'] == {first_candidate_id!r} or limit >= 2\n"
+        "    if terminal:\n"
+        "        results.append(native_results[candidate['candidate_id']])\n"
+        "    else:\n"
+        "        evidence = json.dumps(['test-evidence', candidate['candidate_id'], limit], separators=(',', ':'))\n"
+        "        results.append({'candidate_id': candidate['candidate_id'], 'status': 'inconclusive', 'detail': 'test work limit', 'evidence_sha256': hashlib.sha256(evidence.encode()).hexdigest(), 'evidence_canonical_json': evidence, 'completed_vectors': None, 'realization_witness': None})\n"
+        "payload = {'type': 'voronoi/completion-batch-report@4', 'noether_contract': task['noether_contract'], 'strategy': task['strategy'], 'max_iterations': limit, 'results': results, **{status: sum(row['status'] == status for row in results) for status in ['completed', 'nonrealizable', 'inconclusive']}}\n"
         "json.dump(payload, sys.stdout, separators=(',', ':'))\n"
     )
     upgrade_engine.chmod(0o755)
@@ -580,7 +638,9 @@ def test_bounded_rust_coface_task_has_terminal_coverage(tmp_path: Path) -> None:
     assert all(call_ids.count(str(row["candidate_id"])) == 2 for row in candidates[1:])
 
 
-@pytest.mark.parametrize("version_probe", [False, True], ids=["completion", "version-probe"])
+@pytest.mark.parametrize(
+    "version_probe", [False, True], ids=["completion", "version-probe"]
+)
 def test_completion_timeout_kills_solver_descendants(
     tmp_path: Path, monkeypatch, version_probe: bool
 ) -> None:

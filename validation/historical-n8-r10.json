@@ -28,6 +28,10 @@
   "historical_runtime": {
     "noether_engine_sha256": "713131c758c1cce0fcb3749690ab96789d9e055e9bdee3e83102084aab570b0e",
     "census_engine_sha256": "29cd3deb678f6edfad1432e8dec8925c7b0fa356872196dd987cf25fad37f384",
-    "replayed_under_noether_0_3_2": false
-  }
+    "replayed_under_noether_0_3_2": true
+  },
+  "current_positive_audit": "validation/n8-r10-positive-audit-2026-10-28.json",
+  "current_orbit_audit": "validation/n8-r10-orbit-audit-2026-10-28.json",
+  "current_ledger_replay": "validation/n8-r10-ledger-replay-2026-10-28.json",
+  "replay_scope_note": "All 453 positive shells, all 924184 historical negative proofs, and all 1082707 saved orbit transports have been replayed under Noether 0.3.2. Earlier coface-pair enumeration and global census coverage remain separate obligations."
 }

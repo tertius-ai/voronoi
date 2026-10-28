@@ -1,0 +1,88 @@
+{
+  "type": "voronoi/orbit-audit-validation@1",
+  "date": "2026-10-28",
+  "noether_version": "0.3.2",
+  "scope": {
+    "ambient_rank": 8,
+    "cone_dimension": 10,
+    "projective_degree": 9,
+    "lower_index": 0,
+    "relative_input": "historical lower-000 candidate artifact"
+  },
+  "key_regeneration": {
+    "candidate_count": 2007344,
+    "same_keyed_content": true,
+    "keyed_content_sha256": "bbc3cc550b74926807fcb8657f23b6985702b887b9a8028c4b14c3390fed9119"
+  },
+  "orbit_replay": {
+    "candidate_count": 2007344,
+    "candidate_occurrence_count": 3049571,
+    "orbit_count": 924637,
+    "fingerprint_group_count": 924637,
+    "exact_transports_replayed": 1082707,
+    "representative_fingerprints_recomputed": 924637,
+    "representative_inequivalence_checks": 0,
+    "largest_fingerprint_group": 40,
+    "orbit_content_sha256": "55bb934881edc976981f5b3e9a711a6a007ba316e80bfe7ce5fab0ee185be38a"
+  },
+  "negative_regeneration_sample": {
+    "sample_count": 64,
+    "selection": "One negative per shard at or after floor(shard_index * orbit_count / 64).",
+    "status_counts": {
+      "nonrealizable": 64
+    },
+    "historical_kind_labels": {
+      "homogeneous_minimum_at_least_one": 1,
+      "nonpositive_outsider_margin": 63
+    },
+    "fresh_certificates_verified": 64,
+    "historical_certificates_replayed": false,
+    "source_note": "One historical homogeneous-minimum certificate was replaced by a fresh outsider-margin certificate; the verdict agrees."
+  },
+  "evidence": {
+    "availability": "Local ignored artifacts; this record is not the evidence bundle.",
+    "orbit_directory": "artifacts/n8-r10/orbit-evidence-audit-noether-0.3.2-20261028",
+    "orbit_report_sha256": "8ca42080569caca7a144878592a9310f4f34e9e08969cbc43c272cb8737981a9",
+    "orbit_task_sha256": "e9fed4fe5d205adb06eef66a898ceb8a99b67f5a28d44582775191e0e1650b0c",
+    "orbit_provenance_sha256": "f63594aa60dd6a883b23a8dc1e58023217d1fc8742896252c21f5b99d5d63e86",
+    "key_comparison_sha256": "1bda09153ef271fface3ea919cdb0646614cb12dedb305118e8d805946b51f5b",
+    "negative_directory": "artifacts/n8-r10/negative-calibration-noether-0.3.2-20261028",
+    "negative_summary_sha256": "f9074dd4cfb9da03733ce0ba6fbd93d06d2517b3977c23b89fa3f87f5054c992",
+    "worker_sha256": "59778c01812c973bd1480dcdcd4bc66937ad7ebdc4f331cc658197c39825f8da"
+  },
+  "checks": [
+    {
+      "command": "make doctor",
+      "result": "passed"
+    },
+    {
+      "command": "make test-rust",
+      "result": "passed",
+      "tests": 9
+    },
+    {
+      "command": "make test-corpus",
+      "result": "passed",
+      "tests": 90,
+      "skipped": 0
+    },
+    {
+      "command": "pytest -q tests/test_orbit_audit.py tests/test_historical_evidence.py",
+      "result": "passed",
+      "tests": 8,
+      "note": "Includes the additional CLI non-overwrite test added after the full suite collected."
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    }
+  ],
+  "distinct_python_tests_validated": 91,
+  "existing_historical_artifacts_modified": false,
+  "all_historical_orbit_reduction_transports_replayed": true,
+  "historical_negative_certificates_replayed": false,
+  "all_negative_verdicts_revalidated": false,
+  "earlier_coface_pair_enumeration_regenerated": false,
+  "global_census_complete": false,
+  "next_verification_step": "Implement historical certificate decoding, project constraint reconstruction, and native proof checks in Voronoi using public Noether exact operations. Propose Noether extensions only for independently useful missing operations; no release change is currently required."
+}

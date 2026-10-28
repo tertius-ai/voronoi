@@ -282,6 +282,61 @@ def _cmd_census_orbit_key(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_census_audit_orbits(args: argparse.Namespace) -> int:
+    """Replay saved orbit evidence without changing its input artifacts."""
+    import hashlib
+
+    from voronoi.enumerate.census_engine import _engine_path
+    from voronoi.enumerate.orbit_audit import (
+        build_orbit_audit_task,
+        run_orbit_audit_task,
+    )
+    from voronoi.runtime import census_engine_runtime
+
+    if args.memory_gib <= 0 or args.timeout_seconds <= 0:
+        raise ValueError("memory and timeout limits must be positive")
+    destination = args.output_report.expanduser().resolve()
+    if destination.exists():
+        raise FileExistsError(destination)
+    pair, key, orbit = [
+        json.loads(path.read_text())
+        for path in (args.pair_report, args.key_report, args.orbit_report)
+    ]
+    task = build_orbit_audit_task(
+        args.keyed_artifact,
+        args.orbit_artifact,
+        pair,
+        key,
+        orbit,
+        max_fingerprint_group_size=args.max_fingerprint_group_size,
+    )
+    engine = _engine_path(None)
+    with engine.open("rb") as stream:
+        worker_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    report = run_orbit_audit_task(
+        task,
+        engine=engine,
+        memory_limit_bytes=args.memory_gib * 1024**3,
+        timeout_seconds=args.timeout_seconds,
+    )
+    with engine.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != worker_sha256:
+            raise RuntimeError("census worker changed during orbit audit")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_noclobber(
+        destination,
+        {
+            "type": "voronoi/orbit-audit-run@1",
+            "task": task,
+            "report": report,
+            "worker_runtime": census_engine_runtime(engine),
+            "worker_sha256": worker_sha256,
+        },
+    )
+    print(json.dumps({**report, "output": str(destination)}, sort_keys=True))
+    return 0
+
+
 def _cmd_census_orbits(args: argparse.Namespace) -> int:
     """Resolve invariant collisions with verified unimodular equivalences."""
 
@@ -333,7 +388,12 @@ def main(argv: list[str] | None = None) -> int:
         "census-pairs", help="build one bounded disk-backed coface-pair artifact"
     )
     c.add_argument("--N", type=int, required=True, help="ambient lattice rank")
-    c.add_argument("--lower-dimension", type=int, required=True)
+    c.add_argument(
+        "--lower-dimension",
+        type=int,
+        required=True,
+        help="lower cone dimension r (projective cell degree r-1)",
+    )
     c.add_argument("--lower-index", type=int, required=True)
     c.add_argument("--output-dir", type=Path, required=True)
     c.add_argument(
@@ -436,6 +496,20 @@ def main(argv: list[str] | None = None) -> int:
     oo.add_argument("--memory-gib", type=int, default=4)
     oo.add_argument("--timeout-seconds", type=int, default=2 * 60 * 60)
     oo.set_defaults(func=_cmd_census_orbits)
+
+    audit = sub.add_parser(
+        "census-audit-orbits", help="replay saved orbit transports and input coverage"
+    )
+    audit.add_argument("--keyed-artifact", type=Path, required=True)
+    audit.add_argument("--orbit-artifact", type=Path, required=True)
+    audit.add_argument("--pair-report", type=Path, required=True)
+    audit.add_argument("--key-report", type=Path, required=True)
+    audit.add_argument("--orbit-report", type=Path, required=True)
+    audit.add_argument("--output-report", type=Path, required=True)
+    audit.add_argument("--max-fingerprint-group-size", type=int, default=10_000)
+    audit.add_argument("--memory-gib", type=int, default=4)
+    audit.add_argument("--timeout-seconds", type=int, default=30 * 60)
+    audit.set_defaults(func=_cmd_census_audit_orbits)
 
     args = p.parse_args(argv)
     return args.func(args)

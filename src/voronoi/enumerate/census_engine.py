@@ -13,9 +13,12 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from noether import Z
 from noether.groups import DoubleCoset, Permutation
 from noether.linalg import (
     IntegralLineConfiguration,
+    Lattice,
+    Matrix,
     MinimumCompletion,
     MinimumCompletionCertificate,
     MinimumRealization,
@@ -27,7 +30,7 @@ DEFAULT_MEMORY_LIMIT_BYTES = 4 * 1024**3
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 REPORT_SCHEMA = "voronoi/coface-pair-rank-report@2"
 COMPLETION_TASK_SCHEMA = "voronoi/completion-batch-task@2"
-COMPLETION_REPORT_SCHEMA = "voronoi/completion-batch-report@3"
+COMPLETION_REPORT_SCHEMA = "voronoi/completion-batch-report@4"
 CANDIDATE_ARTIFACT_SCHEMA = "voronoi/embedded-candidate-artifact@1"
 CANDIDATE_RECORD_SCHEMA = "voronoi/embedded-candidate-record@1"
 CANDIDATE_FOOTER_SCHEMA = "voronoi/embedded-candidate-footer@1"
@@ -188,6 +191,13 @@ def _run_engine_task(
         raise CensusEngineTimeout(
             f"the bounded census engine exceeded its {timeout_seconds}s time limit"
         ) from error
+    except BaseException:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+        raise
     if process.returncode != 0:
         try:
             os.killpg(process.pid, signal.SIGKILL)
@@ -536,9 +546,45 @@ def run_completion_batch_task(
         completed_vectors = result.get("completed_vectors")
         if (status == "completed") != (completed_vectors is not None):
             raise RuntimeError("completion status and completed shell disagree")
+        verify_positive_completion_witness(result)
+        if status == "completed":
+            seed_rows = candidate["vectors"]
+            seed = IntegralLineConfiguration(len(seed_rows[0]), seed_rows)
+            shell = IntegralLineConfiguration(seed.ambient_rank, completed_vectors)
+            if task.get("strategy") == "exact_shell":
+                if shell != seed:
+                    raise ValueError(
+                        "exact-shell realization changed its input configuration"
+                    )
+            elif shell.perfection_rank != seed.perfection_rank or not set(
+                seed.vectors
+            ).issubset(shell.vectors):
+                raise ValueError("fixed-rank completion changed its seed or cone rank")
     if any(int(payload[key]) != counts[key] for key in counts):
         raise RuntimeError("the completion report terminal counts do not balance")
     return payload
+
+
+def verify_positive_completion_witness(result: Mapping[str, Any]) -> None:
+    """Re-enumerate the saved Gram's full minimum shell through public Noether."""
+    witness = result.get("realization_witness")
+    if result.get("status") != "completed":
+        if witness is not None:
+            raise ValueError("nonpositive completion carries a positive witness")
+        return
+    if not isinstance(witness, dict) or set(witness) != {"gram_matrix", "minimum"}:
+        raise ValueError("positive completion omitted its Gram witness")
+    gram = Matrix.from_rows(
+        Z, [[int(x) for x in row] for row in witness["gram_matrix"]]
+    )
+    shell = Lattice(gram).minimum_vector_configuration()
+    shell.verify()
+    if shell.minimum != int(witness["minimum"]):
+        raise ValueError("positive Gram witness has the wrong minimum")
+    vectors = result["completed_vectors"]
+    target = IntegralLineConfiguration(gram.shape[0], vectors)
+    if shell.configuration != target or [list(v) for v in target.vectors] != vectors:
+        raise ValueError("positive Gram witness has a different complete shell")
 
 
 __all__ = [
@@ -562,4 +608,5 @@ __all__ = [
     "run_coface_pair_task",
     "run_completion_batch_task",
     "verify_candidate_artifact",
+    "verify_positive_completion_witness",
 ]

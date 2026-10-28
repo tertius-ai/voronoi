@@ -45,12 +45,11 @@ def test_all_13_published_n8_n8_cells_are_realizable() -> None:
         result.verify()
 
 
-def test_sigma_n8_GL8_equals_zero() -> None:
-    """All 13 published (N=8, n=8) cells have an orientation-reversing
-    element in Stab(σ), so Σ_n=8(GL_8) = 0 — matching [DSEKM19] Table 4.
+def test_oriented_projective_degree7_GL8_equals_zero() -> None:
+    """The 13 cone-rank-8 cells give no oriented degree-7 generators.
 
-    This verifies the K_8(Z) = 0 chain-complex input at the (n=8, N=8)
-    corner: V_8(GL_8) = Z[Σ_n=8] = 0, hence H_8 = 0 mod 2-torsion.
+    This verifies orientation relative to the published catalog, not an
+    independent classification or a K-theory theorem.
     """
     from voronoi.orientation import has_orientation_reversing_exact
 
@@ -59,15 +58,13 @@ def test_sigma_n8_GL8_equals_zero() -> None:
         pytest.skip(f"{path.name} not fetched")
     cells = parse_list_shv_file(path)
     n_survive = sum(1 for cell in cells if not has_orientation_reversing_exact(cell))
-    assert n_survive == 0, f"Σ_n=8(GL_8) = {n_survive}, expected 0 per DSEKM Table 4"
+    assert n_survive == 0, f"degree-7 oriented generators: {n_survive}, expected 0"
 
 
-def test_sigma_n9_GL8_equals_zero() -> None:
-    """All 106 published (N=8, n=9) cells have an orientation-reversing
-    element in Stab(σ), so Σ_n=9(GL_8) = 0 — matching [DSEKM19] Table 4.
+def test_oriented_projective_degree8_GL8_equals_zero() -> None:
+    """The 106 cone-rank-9 cells give no oriented degree-8 generators.
 
-    Tests the n > N (rectangular M) code path of
-    has_orientation_reversing_exact.
+    Exercises the rectangular-configuration orientation path.
     """
     from voronoi.orientation import has_orientation_reversing_exact
 
@@ -77,13 +74,12 @@ def test_sigma_n9_GL8_equals_zero() -> None:
     cells = parse_list_shv_file(path)
     assert len(cells) == 106
     n_survive = sum(1 for cell in cells if not has_orientation_reversing_exact(cell))
-    assert n_survive == 0, f"Σ_n=9(GL_8) = {n_survive}, expected 0 per DSEKM Table 4"
+    assert n_survive == 0, f"degree-8 oriented generators: {n_survive}, expected 0"
 
 
 @pytest.mark.slow
-def test_sigma_n10_GL8_equals_zero() -> None:
-    """All 783 (N=8, n=10) cells: Σ_n=10(GL_8) = 0 per DSEKM Table 4.
-    Marked @slow because this takes ~30 seconds."""
+def test_oriented_projective_degree9_GL8_equals_zero() -> None:
+    """The 783 cone-rank-10 cells give no oriented degree-9 generators."""
     from voronoi.orientation import has_orientation_reversing_exact
 
     path = _DATA / "ListSHV_n8_rank10"

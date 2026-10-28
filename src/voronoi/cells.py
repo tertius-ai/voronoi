@@ -5,7 +5,8 @@ The mathematical input is a finite set of primitive integral lines in
 rank-one forms, perfection rank, and barycenter. This module adds only the
 interpretation of that configuration as a cell of a Voronoi complex.
 
-The cone dimension ``r`` and number of rays ``s`` are distinct. Published
+The cone dimension ``r``, projective dimension ``r-1``, and number of rays
+``s`` are distinct. Published
 low-dimensional files happen to use simplicial configurations with ``r=s``;
 that equality is verified rather than built into the representation.
 """
@@ -70,9 +71,15 @@ class VoronoiCell:
 
     @property
     def dim(self) -> int:
-        """Compatibility alias for :attr:`cone_dimension`."""
+        """Legacy cone-dimension alias; not the cellular chain degree."""
 
         return self.cone_dimension
+
+    @property
+    def projective_dimension(self) -> int:
+        """Cellular degree after quotienting the cone by positive scaling."""
+
+        return self.cone_dimension - 1
 
     @property
     def ray_count(self) -> int:

@@ -1,5 +1,5 @@
 {
-  "_note": "Published reference expectations from DSEKM19, Proposition 4.3 and Table 4; these are not a claim that every layer has been independently reconstructed here.",
+  "_note": "Published reference expectations, not an independent reconstruction. Legacy cell_counts and orientation_preserving_counts are keyed by cone rank r. See docs/mathematical-grading.md for the mismatch with the cellular labels in Table 4.",
   "_reference": "Dutour Sikirić, Elbaz-Vincent, Kupers, Martinet 2019, tableBeyond8",
   "N": 8,
   "cell_counts": {
@@ -16,6 +16,20 @@
     "11": 0,
     "12": 0
   },
-  "expected_homology_mod_s2": "H_k(Vor_{GL_8}) = 0 for k <= 12 (mod 2-torsion)",
+  "projective_cell_counts": {
+    "7": 13,
+    "8": 106,
+    "9": 783,
+    "10": 6167,
+    "11": 50645
+  },
+  "expected_oriented_projective_chain_counts": {
+    "7": 0,
+    "8": 0,
+    "9": 0,
+    "10": 0,
+    "11": 0
+  },
+  "cited_external_theorem": "DSEKM19 Theorem 4.5 states H_k(Vor_{GL_8}) = 0 for k <= 12 modulo S_2; its degree-12 endpoint is not reproduced by these cone-rank-8-through-12 files alone.",
   "_reference_url": "https://arxiv.org/html/1910.11598"
 }

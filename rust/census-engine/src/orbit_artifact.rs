@@ -16,6 +16,12 @@ use sha2::{Digest, Sha256};
 
 use crate::{configuration, i64_vectors, noether_contract, MAX_CANDIDATE_CAP};
 
+mod audit;
+pub use audit::{
+    audit_orbit_artifact, OrbitAuditReport, OrbitAuditTask, ORBIT_AUDIT_REPORT_SCHEMA,
+    ORBIT_AUDIT_TASK_SCHEMA,
+};
+
 pub const ORBIT_KEY_TASK_SCHEMA: &str = "voronoi/orbit-key-task@1";
 pub const ORBIT_KEY_REPORT_SCHEMA: &str = "voronoi/orbit-key-report@1";
 pub const ORBIT_FINGERPRINT_SCHEMA: &str = "voronoi/maximal-minor-incidence@1";
@@ -183,7 +189,8 @@ struct OwnedKeyedFooter {
     fingerprint_group_count: u64,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct OrbitCandidate {
     candidate_id: String,
     vectors: Vec<Vec<i64>>,
@@ -194,7 +201,8 @@ struct OrbitCandidate {
     witness_representative: Vec<u32>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct EquivalentMember {
     candidate: OrbitCandidate,
     transformation_to_representative: Vec<Vec<String>>,
@@ -917,7 +925,7 @@ fn validate_keyed_record(
     validate_candidate_record(&candidate, ambient_rank, None)
 }
 
-fn equivalence_fingerprint(vectors: &[Vec<i64>], ambient_rank: usize) -> Result<String> {
+pub(crate) fn equivalence_fingerprint(vectors: &[Vec<i64>], ambient_rank: usize) -> Result<String> {
     let checked = configuration(vectors, ambient_rank)?;
     if checked.vectors().len() < ambient_rank {
         bail!("orbit fingerprint requires at least ambient-rank many lines")
