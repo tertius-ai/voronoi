@@ -8,7 +8,14 @@ import pytest
 
 from voronoi.parse import parse_list_shv_file
 
-_DATA_ROOT = Path(__file__).parent.parent / "data" / "elbazvip-Voronoi-complexes-database" / "DATA_pari"
+pytestmark = pytest.mark.corpus
+
+_DATA_ROOT = (
+    Path(__file__).parent.parent
+    / "data"
+    / "elbazvip-Voronoi-complexes-database"
+    / "DATA_pari"
+)
 
 # Cell-orbit counts per (lattice_rank N, cell_dim n) from the paper's
 # Table NrOrbitCones_Perfect. Used as a reproducibility checkpoint:

@@ -1,0 +1,33 @@
+{
+  "type": "voronoi/historical-census-summary@1",
+  "scope": {
+    "ambient_rank": 8,
+    "target_dimension": 10,
+    "lower_index": 0,
+    "global_census_complete": false
+  },
+  "audit_date": "2026-09-02",
+  "local_artifact_root": "artifacts/n8-r10",
+  "artifact_availability": "Local evidence; certificate bundle is not included in this repository.",
+  "candidate_occurrences": 3049571,
+  "embedded_candidates": 2007344,
+  "orbit_representatives": 924637,
+  "content_sha256": {
+    "candidates": "d5a0c9bac2956e07c4751895c013b1e70b4fc90e1b7a02b49ebc8f03e8b7b852",
+    "keyed": "bbc3cc550b74926807fcb8657f23b6985702b887b9a8028c4b14c3390fed9119",
+    "orbits": "55bb934881edc976981f5b3e9a711a6a007ba316e80bfe7ce5fab0ee185be38a"
+  },
+  "completion": {
+    "shards": 64,
+    "representatives": 924637,
+    "realized": 453,
+    "nonrealizable": 924184,
+    "inconclusive": 0,
+    "new_batches_during_audit": 0
+  },
+  "historical_runtime": {
+    "noether_engine_sha256": "713131c758c1cce0fcb3749690ab96789d9e055e9bdee3e83102084aab570b0e",
+    "census_engine_sha256": "29cd3deb678f6edfad1432e8dec8925c7b0fa356872196dd987cf25fad37f384",
+    "replayed_under_noether_0_3_2": false
+  }
+}

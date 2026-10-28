@@ -1,0 +1,19 @@
+[package]
+name = "voronoi-census-engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+noether = { version = "=0.3.2", path = "../../../noether/crates/noether" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+
+[build-dependencies]
+pkg-config = "0.3"

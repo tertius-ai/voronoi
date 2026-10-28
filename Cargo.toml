@@ -1,0 +1,3 @@
+[workspace]
+members = ["rust/census-engine"]
+resolver = "2"

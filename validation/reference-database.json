@@ -1,0 +1,19 @@
+{
+  "type": "voronoi/reference-database@1",
+  "repository": "https://github.com/elbazvip/Voronoi-complexes-database.git",
+  "revision": "d4c7b40ad2c95850d16160b347953dbaa9241486",
+  "license_file": "LICENSE",
+  "files": {
+    "ListSHV_n10_rank10": "ffce15ec529b1ee938f681d4bc25ef3b97cb9c6fb06aac1d75a3a9a6663dcfa8",
+    "ListSHV_n10_rank11": "7f310b31b9bbe14abe46b3f4337a111f3e5ddd49b52cf9a70370a871f9fb25c7",
+    "ListSHV_n11_rank11": "8933ea6c96b7d67dd2dbb2ba552bbc345eca4a282ae8435ba3e84034eaa67298",
+    "ListSHV_n8_rank10": "75002025e383b40240ebbd6e8fc23c3e957357eb142142182ea3032959706e0c",
+    "ListSHV_n8_rank11": "593dbc50c4901338934a569a13d138540bfd1cc99ded0b8c8ff7d93897cfe0ef",
+    "ListSHV_n8_rank12": "1fac3d9667498760216f4984f44f86e3265770f4ef6868058522ec5252f61015",
+    "ListSHV_n8_rank8": "ccfee203a3b13ad66e2f1696f93d1bc71578295b57dc33d7742e5ddef6110f9c",
+    "ListSHV_n8_rank9": "e412ff165d2e5754956214237f06148f7d4d077491178354fcabf8ded559427e",
+    "ListSHV_n9_rank10": "ca2dc7a36544b21dd4956b334014158a2671e9aef76b397b2b9c2e28ae2520be",
+    "ListSHV_n9_rank11": "54e44e938249679f862c327b681d6250049f7a2935f603e01bf9ce7f01a18aa8",
+    "ListSHV_n9_rank9": "e20893f2804cbfc19581b6076cd662a5085c3fedbc31f7b98b330093ef06539d"
+  }
+}

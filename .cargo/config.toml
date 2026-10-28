@@ -1,0 +1,7 @@
+[env]
+# Reuse the sibling Noether checkout's managed FLINT installation. An explicit
+# PKG_CONFIG_PATH or FLINT_PREFIX can select another compatible installation.
+PKG_CONFIG_PATH = { value = "../noether/.deps/flint/lib/pkgconfig", relative = true, force = false }
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3"]

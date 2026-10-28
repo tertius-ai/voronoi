@@ -1,50 +1,93 @@
-"""VoronoiCell: a single cell σ of the Voronoi complex Vor_{GL_N(Z)}.
+"""Voronoi cells as problem-specific wrappers around Noether configurations.
 
-A cell of dimension ``dim`` is represented by its ``min_vectors``: a
-``(dim × lattice_rank)`` integer matrix whose rows are the minimum
-vectors of a perfect form (or of a face of the perfect-cone
-decomposition) that parameterizes σ.
+The mathematical input is a finite set of primitive integral lines in
+``Z^N``. Noether owns their canonical sign convention, exact spanning rank,
+rank-one forms, perfection rank, and barycenter. This module adds only the
+interpretation of that configuration as a cell of a Voronoi complex.
 
-The representative is not canonical; two cells with different
-``min_vectors`` matrices can lie in the same GL_N(Z)-orbit. Orbit
-equality is checked via lattice isometry — see ``stab.py``.
-
-Conventions (matching the DATA_pari files in the published database):
-
-- Rows of ``min_vectors`` are lattice vectors in Z^{lattice_rank}.
-- The set {± row_i} is the full minimum-vector set of the underlying
-  perfect form; we only store one of each ± pair.
-- ``dim`` = number of rows = dimension of the Voronoi cell in the
-  space of symmetric bilinear forms on R^{lattice_rank}.
+The cone dimension ``r`` and number of rays ``s`` are distinct. Published
+low-dimensional files happen to use simplicial configurations with ``r=s``;
+that equality is verified rather than built into the representation.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
+
+from noether.linalg import IntegralLineConfiguration
 
 
 @dataclass(frozen=True)
 class VoronoiCell:
-    lattice_rank: int
-    dim: int
-    min_vectors: tuple[tuple[int, ...], ...]
+    """One embedded perfect-cone/minimal-class representative.
 
-    def __post_init__(self) -> None:
-        if len(self.min_vectors) != self.dim:
-            raise ValueError(
-                f"dim={self.dim} but got {len(self.min_vectors)} min vectors"
-            )
-        for i, row in enumerate(self.min_vectors):
-            if len(row) != self.lattice_rank:
-                raise ValueError(
-                    f"row {i} has length {len(row)}, expected {self.lattice_rank}"
-                )
+    ``configuration`` retains its coordinates in ``Z^N``. Orbit equivalence
+    is an exact operation and is not implicit object identity.
+    """
+
+    configuration: IntegralLineConfiguration
 
     @classmethod
-    def from_rows(cls, rows: Sequence[Sequence[int]]) -> "VoronoiCell":
-        mv = tuple(tuple(int(x) for x in row) for row in rows)
-        if not mv:
-            raise ValueError("cannot build a cell with zero min vectors")
-        lattice_rank = len(mv[0])
-        return cls(lattice_rank=lattice_rank, dim=len(mv), min_vectors=mv)
+    def from_rows(
+        cls,
+        rows: Sequence[Sequence[int]],
+        *,
+        expected_dimension: int | None = None,
+    ) -> VoronoiCell:
+        """Construct from primitive vector representatives modulo sign.
+
+        ``expected_dimension`` is an assertion supplied by a corpus or census
+        layer. It is checked against the exact rank of the forms ``v v^t``.
+        """
+
+        materialized = tuple(
+            tuple(int(coordinate) for coordinate in row) for row in rows
+        )
+        if not materialized:
+            raise ValueError("cannot build a Voronoi cell with zero rays")
+        ambient_rank = len(materialized[0])
+        configuration = IntegralLineConfiguration(ambient_rank, materialized)
+        cell = cls(configuration=configuration)
+        if expected_dimension is not None and cell.cone_dimension != expected_dimension:
+            raise ValueError(
+                f"computed cone dimension {cell.cone_dimension} disagrees with "
+                f"declared dimension {expected_dimension}"
+            )
+        return cell
+
+    @property
+    def lattice_rank(self) -> int:
+        """Ambient lattice rank ``N``."""
+
+        return self.configuration.ambient_rank
+
+    @property
+    def cone_dimension(self) -> int:
+        """Perfection rank ``r = rank{v v^t}``."""
+
+        return self.configuration.perfection_rank
+
+    @property
+    def dim(self) -> int:
+        """Compatibility alias for :attr:`cone_dimension`."""
+
+        return self.cone_dimension
+
+    @property
+    def ray_count(self) -> int:
+        """Number ``s`` of minimum-vector pairs/rays."""
+
+        return self.configuration.line_count
+
+    @property
+    def is_simplicial(self) -> bool:
+        """Whether the rank-one ray generators are linearly independent."""
+
+        return self.configuration.is_rank_one_independent
+
+    @property
+    def min_vectors(self) -> tuple[tuple[int, ...], ...]:
+        """Canonical primitive representatives retained for legacy callers."""
+
+        return self.configuration.vectors

@@ -51,7 +51,7 @@ def _parse_matrix_literal(text: str) -> list[list[int]]:
     rows: list[list[int]] = []
     for i, row in enumerate(parsed):
         if not isinstance(row, list):
-            raise ValueError(f"row {i} is not a list (got {type(row).__name__})")
+            raise TypeError(f"row {i} is not a list (got {type(row).__name__})")
         rows.append([int(x) for x in row])
     return rows
 
@@ -70,7 +70,7 @@ def parse_list_shv_file(path: str | Path) -> list[VoronoiCell]:
     with path.open() as fh:
         for lineno, raw in enumerate(fh, start=1):
             line = raw.strip()
-            if not line or line.startswith("\\\\") or line.startswith("/*"):
+            if not line or line.startswith(("\\\\", "/*")):
                 continue
             if line.startswith("ListSHV"):
                 # trailing summary line ("ListSHV_n8_rank8 = [U1,U2,...,U13]")
@@ -82,11 +82,14 @@ def parse_list_shv_file(path: str | Path) -> list[VoronoiCell]:
                 rows = _parse_matrix_literal(m["rhs"])
             except (SyntaxError, ValueError) as exc:
                 raise ValueError(f"{path}:{lineno}: parse error: {exc}") from exc
-            cell = VoronoiCell.from_rows(rows)
-            if cell.lattice_rank != lattice_rank or cell.dim != cell_dim:
+            try:
+                cell = VoronoiCell.from_rows(rows, expected_dimension=cell_dim)
+            except ValueError as exc:
+                raise ValueError(f"{path}:{lineno}: invalid cell: {exc}") from exc
+            if cell.lattice_rank != lattice_rank:
                 raise ValueError(
                     f"{path}:{lineno}: cell shape "
-                    f"({cell.dim}×{cell.lattice_rank}) disagrees with filename "
+                    f"({cell.cone_dimension}×{cell.lattice_rank}) disagrees with filename "
                     f"({cell_dim}×{lattice_rank})"
                 )
             cells.append(cell)

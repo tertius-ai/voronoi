@@ -35,7 +35,7 @@ def enumerate_index_1_cells(n: int) -> list[VoronoiCell]:
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     rows = tuple(tuple(1 if i == j else 0 for j in range(n)) for i in range(n))
-    return [VoronoiCell(lattice_rank=n, dim=n, min_vectors=rows)]
+    return [VoronoiCell.from_rows(rows, expected_dimension=n)]
 
 
 def _watson_min_vectors_d2_canonical(n: int, weight: int) -> list[list[int]]:
@@ -63,9 +63,7 @@ def _watson_min_vectors_d2_canonical(n: int, weight: int) -> list[list[int]]:
     s > n — excluded from the index-2 s=n classification.)
     """
     if weight < 5 or weight > n:
-        raise ValueError(
-            f"weight must be in [5, {n}] for n={n} cells, got {weight}"
-        )
+        raise ValueError(f"weight must be in [5, {n}] for n={n} cells, got {weight}")
     M: list[list[int]] = []
     # m_0 = (2, -1, ..., -1 [w-1 entries], 0, ..., 0).
     m_0 = [0] * n
@@ -107,9 +105,7 @@ def enumerate_index_2_cells(n: int) -> list[VoronoiCell]:
     return cells
 
 
-def _watson_min_vectors_d_canonical(
-    n: int, weight: int, d: int
-) -> list[list[int]]:
+def _watson_min_vectors_d_canonical(n: int, weight: int, d: int) -> list[list[int]]:
     """Min-vector matrix for the d-cyclic cell with canonical
     "all-ones-on-support" Z/dZ code of given weight.
 
@@ -134,9 +130,7 @@ def _watson_min_vectors_d_canonical(
     if d < 2:
         raise ValueError(f"d must be >= 2 for cyclic case, got {d}")
     if weight <= 2 * d:
-        raise ValueError(
-            f"weight must be > 2d = {2*d} for s=n, got {weight}"
-        )
+        raise ValueError(f"weight must be > 2d = {2 * d} for s=n, got {weight}")
     if weight > n:
         raise ValueError(f"weight must be <= n = {n}, got {weight}")
     M: list[list[int]] = []
@@ -206,17 +200,13 @@ def _watson_min_vectors_d_cyclic_canonical(
     if n != n_2 + n_1 + n_0:
         raise ValueError(
             f"composition (n_2={n_2}, n_1={n_1}, n_0={n_0}) sums to "
-            f"{n_2+n_1+n_0}, expected {n}"
+            f"{n_2 + n_1 + n_0}, expected {n}"
         )
     if n_1 < 1:
-        raise ValueError(
-            f"n_1 >= 1 required for primitive d={d} cyclic cell"
-        )
+        raise ValueError(f"n_1 >= 1 required for primitive d={d} cyclic cell")
     weight = 2 * n_2 + n_1
     if weight <= 2 * d:
-        raise ValueError(
-            f"weight = 2 n_2 + n_1 = {weight}, must be > 2d = {2*d}"
-        )
+        raise ValueError(f"weight = 2 n_2 + n_1 = {weight}, must be > 2d = {2 * d}")
 
     c = [2] * n_2 + [1] * n_1 + [0] * n_0
     p = n_2
@@ -246,15 +236,39 @@ def _watson_min_vectors_d4_cyclic_canonical(
     return _watson_min_vectors_d_cyclic_canonical(n, n_2, n_1, n_0, d=4)
 
 
-def _gram_centroid(cell: VoronoiCell) -> list[list[int]]:
-    """Centroid Gram form A_σ = Σ_v v v^T = M^T M (rows = min vectors)."""
-    n = cell.lattice_rank
-    g = [[0] * n for _ in range(n)]
-    for v in cell.min_vectors:
-        for i in range(n):
-            for j in range(n):
-                g[i][j] += v[i] * v[j]
-    return g
+def _certified_realizable(candidates: list[VoronoiCell]) -> list[VoronoiCell]:
+    """Keep certified positives and refuse to turn work limits into negatives."""
+    realized: list[VoronoiCell] = []
+    for index, candidate in enumerate(candidates):
+        result = candidate.configuration.realize_minimum(max_iterations=200)
+        result.verify()
+        if result.status == "realized":
+            realized.append(candidate)
+        elif result.status == "inconclusive":
+            if result.checkpoint is None:
+                raise RuntimeError("inconclusive result omitted its checkpoint")
+            raise RuntimeError(
+                f"Watson candidate {index} is inconclusive after "
+                f"{result.checkpoint.iterations} iterations: "
+                f"{result.checkpoint.reason}"
+            )
+    return realized
+
+
+def _deduplicate(candidates: list[VoronoiCell]) -> list[VoronoiCell]:
+    """Deduplicate with verified integral-line equivalence witnesses."""
+    distinct: list[VoronoiCell] = []
+    for candidate in candidates:
+        for representative in distinct:
+            equivalence = candidate.configuration.equivalence_to(
+                representative.configuration
+            )
+            if equivalence is not None:
+                equivalence.verify()
+                break
+        else:
+            distinct.append(candidate)
+    return distinct
 
 
 def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
@@ -269,23 +283,17 @@ def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
     coordinate-permuted basis), which DSEKM Table 2 does NOT classify
     as (n, n) cells.
 
-    Filter: ``noether.api.lattice.is_realizable_min_vector_set`` —
-    the [DSEKM19] §3.1 LP loop only accepts V's that are exactly the
-    tight min set of some PD form (no equal-norm extras). On n=8,
-    this drops 12 of 16 candidates leaving exactly 4 cells.
-
-    Then qfisom on centroid Grams confirms these 4 are pairwise
-    inequivalent.
+    Noether's exact three-way realization playbook retains only candidates
+    certified as a complete minimum shell. Exact line-configuration
+    equivalence then removes duplicate orbits.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     if n < 5:
         return []
 
-    from noether.api.lattice import is_realizable_min_vector_set, isometry
-
     candidates: list[VoronoiCell] = []
-    for n_2 in range(0, n + 1):
+    for n_2 in range(n + 1):
         for n_1 in range(1, n + 1 - n_2):
             n_0 = n - n_2 - n_1
             weight = 2 * n_2 + n_1
@@ -297,32 +305,7 @@ def enumerate_index_4_cyclic_cells(n: int) -> list[VoronoiCell]:
             except ValueError:
                 continue
 
-    realizable_candidates: list[VoronoiCell] = []
-    for cand in candidates:
-        V = [list(v) for v in cand.min_vectors]
-        try:
-            ok = is_realizable_min_vector_set(V, max_iterations=200)
-        except RuntimeError:
-            # Convergence failure on this candidate — treat as not
-            # realizable (this is the s > n case where the LP loop
-            # doesn't terminate cleanly).
-            ok = False
-        if ok:
-            realizable_candidates.append(cand)
-
-    distinct: list[VoronoiCell] = []
-    distinct_grams: list[list[list[int]]] = []
-    for cand in realizable_candidates:
-        cand_gram = _gram_centroid(cand)
-        is_new = True
-        for d_gram in distinct_grams:
-            if isometry(cand_gram, d_gram) is not None:
-                is_new = False
-                break
-        if is_new:
-            distinct.append(cand)
-            distinct_grams.append(cand_gram)
-    return distinct
+    return _deduplicate(_certified_realizable(candidates))
 
 
 def _watson_min_vectors_d2_klein_canonical(
@@ -408,14 +391,12 @@ def enumerate_index_4_klein_cells(n: int) -> list[VoronoiCell]:
     (cosets fit in n positions), |T| ∈ [w_1+w_2-n, (w_1+w_2-5)/2]
     (Watson on XOR coset) give only two valid (w_1, w_2, |T|) configs
     in n=8: (5, 5, 2) and (5, 6, 3) — both with weight multiset
-    {5, 5, 6}, hence in the same orbit under qfisom dedupe.
+    {5, 5, 6}, hence in the same exact integral-line orbit.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     if n < 8:
         return []
-
-    from noether.api.lattice import is_realizable_min_vector_set, isometry
 
     candidates: list[VoronoiCell] = []
     for w_1 in range(5, n + 1):
@@ -439,29 +420,7 @@ def enumerate_index_4_klein_cells(n: int) -> list[VoronoiCell]:
                 except ValueError:
                     continue
 
-    realizable_candidates: list[VoronoiCell] = []
-    for cand in candidates:
-        V = [list(v) for v in cand.min_vectors]
-        try:
-            ok = is_realizable_min_vector_set(V, max_iterations=200)
-        except RuntimeError:
-            ok = False
-        if ok:
-            realizable_candidates.append(cand)
-
-    distinct: list[VoronoiCell] = []
-    distinct_grams: list[list[list[int]]] = []
-    for cand in realizable_candidates:
-        cand_gram = _gram_centroid(cand)
-        is_new = True
-        for d_gram in distinct_grams:
-            if isometry(cand_gram, d_gram) is not None:
-                is_new = False
-                break
-        if is_new:
-            distinct.append(cand)
-            distinct_grams.append(cand_gram)
-    return distinct
+    return _deduplicate(_certified_realizable(candidates))
 
 
 def enumerate_index_5_cells(n: int) -> list[VoronoiCell]:
@@ -473,51 +432,25 @@ def enumerate_index_5_cells(n: int) -> list[VoronoiCell]:
 
     Watson constraint: weight 2 n_2 + n_1 > 2d = 10. For n=8 this gives
     9 candidate compositions (e.g. (3, 5, 0) at weight 11, (4, 4, 0) at
-    12, etc.). After realizability + qfisom filtering, [DSEKM19] Table 2
-    says 1 cell.
+    12, etc.). After certified realization and exact orbit filtering,
+    [DSEKM19] Table 2 says 1 cell.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     if n < 6:
         return []
 
-    from noether.api.lattice import is_realizable_min_vector_set, isometry
-
     candidates: list[VoronoiCell] = []
-    for n_2 in range(0, n + 1):
+    for n_2 in range(n + 1):
         for n_1 in range(1, n + 1 - n_2):
             n_0 = n - n_2 - n_1
             weight = 2 * n_2 + n_1
             if weight <= 2 * 5:
                 continue
             try:
-                rows = _watson_min_vectors_d_cyclic_canonical(
-                    n, n_2, n_1, n_0, d=5
-                )
+                rows = _watson_min_vectors_d_cyclic_canonical(n, n_2, n_1, n_0, d=5)
                 candidates.append(VoronoiCell.from_rows(rows))
             except ValueError:
                 continue
 
-    realizable_candidates: list[VoronoiCell] = []
-    for cand in candidates:
-        V = [list(v) for v in cand.min_vectors]
-        try:
-            ok = is_realizable_min_vector_set(V, max_iterations=200)
-        except RuntimeError:
-            ok = False
-        if ok:
-            realizable_candidates.append(cand)
-
-    distinct: list[VoronoiCell] = []
-    distinct_grams: list[list[list[int]]] = []
-    for cand in realizable_candidates:
-        cand_gram = _gram_centroid(cand)
-        is_new = True
-        for d_gram in distinct_grams:
-            if isometry(cand_gram, d_gram) is not None:
-                is_new = False
-                break
-        if is_new:
-            distinct.append(cand)
-            distinct_grams.append(cand_gram)
-    return distinct
+    return _deduplicate(_certified_realizable(candidates))

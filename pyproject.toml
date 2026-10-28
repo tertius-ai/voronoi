@@ -9,9 +9,16 @@ description = "Computational attack on K_12(Z) via Voronoi complexes of GL_N(Z)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    # noether is consumed as a local editable dep during development;
-    # see scripts/dev_install.sh.
+    "tertius-noether==0.3.2",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.12"]
+
+# Noether publishes tagged source rather than a PyPI distribution. Keep the
+# v0.3.2 checkout beside this repository; both languages use that same source.
+[tool.uv.sources]
+tertius-noether = { path = "../noether", editable = true }
 
 [project.scripts]
 voronoi = "voronoi.cli:main"
@@ -19,8 +26,17 @@ voronoi = "voronoi.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/voronoi"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src", "/rust", "/scripts", "/tests", "/validation", "/docs", "/.cargo",
+    "/rust-toolchain.toml", "/Cargo.toml", "/Cargo.lock", "/uv.lock",
+    "/pyproject.toml", "/Makefile", "/README.md", "/PLAN.md", "/BIBLIOGRAPHY.md",
+    "/CONTRIBUTING.md", "/AGENTS.md", "/CLAUDE.md", "/LICENSE", "/.gitignore",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
     "slow: tests that take 2-60 seconds each (run with -m slow)",
+    "corpus: published database or full rank-eight reconstruction regressions",
 ]

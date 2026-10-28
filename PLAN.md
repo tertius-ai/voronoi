@@ -1,189 +1,101 @@
-# voronoi — plan
+# Research plan
 
-## Long-term goal
+## Objective
 
-Determine K_12(Z). Specifically: compute H_12(Vor_{GL_N}) for the N
-values where it is open (conservatively, N ∈ {9, 10, 11}), apply
-Borel-Serre duality + Arlettaz's Hurewicz control + Quillen-Lichtenbaum
-at odd regular primes, and output either "K_12(Z) = 0" or "K_12(Z)
-contains p-torsion for p ∈ S."
+Determine the degree-12 Voronoi homology needed in the $K_{12}(\mathbb Z)$
+program. The notation throughout the code is:
 
-## What the paper leaves open
+- $N$: ambient lattice rank;
+- $r$: cone dimension, the rank of the forms $vv^t$;
+- $s$: number of primitive lines modulo sign.
 
-Per arXiv:1910.11598 (Dutour Sikirić-Elbaz-Vincent-Kupers-Martinet):
+The target configurations have $r=12$ and $N\in\{9,10,11\}$. The expected
+Steinberg degrees are $4,3,2$, respectively. The final theorem must state the
+localization and torsion hypotheses used to pass to K-theory.
 
-Shipped cell orbit counts in the public database:
+## Established implementation
 
-| N  | dims shipped | counts                        |
-|----|--------------|-------------------------------|
-| 8  | 8–12         | 13, 106, 783, 6167, 50645     |
-| 9  | 9–11         | 44, 759, 13437                |
-| 10 | 10–11        | 283, 16062                    |
-| 11 | 11 only      | 6674 (conjectural)            |
+The Noether 0.3.2 integration, exact line configurations, Watson base
+reconstruction, minimum realization, equivalence, and orientation regressions
+are implemented. The census engine supports incidence transports, pair
+orbits, disk-backed candidate reduction, and transactional completion shards.
+These are the former M0–M3 foundations and the implemented portion of M4.
 
-For K_12(Z) the missing groups are H_12(Vor_{GL_N}) at N ∈ {9, 10, 11}
-— i.e. the **n=12 column** of the table. vcd(GL_N) = N(N-1)/2, so
-cells in dimensions > 12 also exist in principle; the paper does not
-enumerate past n=12 anywhere. For K_12 we only need the n=12 column.
+The historical lower-000 computation at $(N,r)=(8,10)$ reached terminal
+coverage of its 924,637 candidate orbits. Its summary and provenance are in
+[`validation/historical-n8-r10.json`](validation/historical-n8-r10.json).
+It used an older frozen Noether runtime. It does not establish global census
+coverage, and its evidence has not been fully replayed under 0.3.2.
 
-## Why this isn't "just run noether"
+## Next: finish the rank-eight census (M4)
 
-The linear algebra is largely solved: `engine_rank_mod_p_sparse` +
-Mersenne-cover + pwvla Z/p^n handle the sparse integer homology at
-the ~10^5 scale we expect. The **research wall** is the combinatorial
-cell enumeration at the missing (N, n) pairs — an LP-and-lattice
-problem, not a matmul problem.
+1. Audit the recovered historical artifacts and define how verified evidence
+   will be reused with the current engine.
+2. Complete the incidence and completion stages across every lower cell.
+3. Merge realized configurations by exact integral equivalence, retaining
+   coordinate transports and parentage.
+4. Independently vary sharding and compare coverage and mathematical results.
+5. Reconstruct the published staircase with a coverage certificate for each
+   layer, rather than accepting agreement of counts alone.
 
-## Three-layer plan
+| Cone dimension $r$ | Published $N=8$ orbit count |
+|---:|---:|
+| 8 | 13 |
+| 9 | 106 |
+| 10 | 783 |
+| 11 | 6,167 |
+| 12 | 50,645 |
 
-### Layer A — Reproducibility (landable in 1–2 weeks)
+These are the reference counts from [DSEKM19, Tables 3–4](https://arxiv.org/html/1910.11598).
+The parsed database and a new census have different provenance.
 
-Goal: recompute the paper's Σ_n(GL_8) = 0 result cell-by-cell from
-the published database. This shakes out the full pipeline (parsing,
-stabilizers, orientation, boundary, homology) before we extend.
+## Degree-12 targets (M5–M6)
 
-Tasks:
+- **$N=10,r=12$:** first new simplicial target. Establish exhaustive gluing and
+  verify the resulting orbit and orientation lists.
+- **$N=9,r=12$:** account for non-simplicial completions. A single witness is
+  insufficient when several target configurations can complete a seed.
+- **$N=11$:** first make the $r=11$ base unconditional. The published 6,674
+  configurations were obtained through index 45; their completeness was not
+  proved. Establish and exhaust a finite bound, or supply an equivalent
+  classification proof, before claiming an unconditional $r=12$ result.
 
-1. Parser for the `DATA_pari/ListSHV_n{N}_rank{n}` files (GP list
-   of integer matrices whose rows are minimum vectors).
-2. `VoronoiCell` scitype with invariants (min-vector matrix, lattice
-   rank N, cell dim n).
-3. `noether.api.lattice.automorphism` via libpari FFI (new in
-   noether; wraps `qfauto`). Returns generators of Aut.
-4. `Stab(σ)` = automorphisms of the min-vector set, using 3.
-5. Orientation character χ_σ : Stab(σ) → {±1} from the signed-
-   permutation action on the rows of the min-vector matrix.
-6. Tally driver: for each (N, n) in the corpus, count cells where
-   χ_σ is identically +1. Expected: 0 for (N=8, n=8..12).
-7. Also: build boundary maps ∂_n : C_n → C_{n-1}, feed to
-   `noether.api.smooth_snf`, confirm H_k(Vor_{GL_8}) vanishes
-   (mod S_2) for k ≤ 12. First real-corpus run of smooth_snf in
-   the project.
+The simplicial ranges and the bounded rank-eleven base are discussed in
+[DSEKM19, §§3.2–3.3](https://arxiv.org/html/1910.11598).
 
-Graduation: one command `voronoi reproduce --N 8` prints the
-tally matching Prop 1215 / Thm 1371 of the paper.
+## Boundary, homology, and theorem assembly (M7–M8)
 
-### Layer B — Enumeration (the research wall; months of work)
+If orientation kills every relevant cell, record that evidence explicitly.
+Otherwise construct the adjacent incidence layers, transport and boundary
+signs, verify $d^2=0$, and compute the surviving homology using Noether's
+checked exact linear algebra. Boundary and homology assembly are future work;
+there are no placeholder APIs promising these computations.
 
-Goal: fill in missing rows of the orbit table. Priority (N=9, n=12)
-then (N=10, n=12) then (N=11, n=12).
+The final output must include the orbit database, realization and equivalence
+witnesses, stabilizer and orientation evidence, complete run coverage, any
+boundary/homology evidence, and a theorem report separating unconditional,
+conditional, and incomplete conclusions.
 
-Algorithm: Voronoi's neighbor algorithm. Start from known cells at
-(N, n-1) (shipped in the database). For each cell σ at dim n-1,
-enumerate facet-adjacent cells at dim n by LP-based facet
-enumeration on the Voronoi cone. Canonicalize under GL_N(Z) action
-(via LLL + qfisom). Dedupe against seen orbits.
+## Enumeration and evidence contract
 
-Missing primitives (new in noether unless noted):
+Production enumeration glues known lower-dimensional configurations through
+finite incidence and pair orbits. It retains embeddings and coordinate
+transports, realizes the target configurations, and resolves orbit collisions
+with exact unimodular witnesses. The diagnostic radius experiment is not a
+replacement for a completeness argument.
 
-- `noether.api.convex.lp` — exact LP feasibility (wrap `cdd` /
-  `GLPK` subprocess initially; native Rust later).
-- `noether.api.lattice.isometry(G1, G2)` — via PARI `qfisom`.
-- `noether.api.lattice.canonical_form(L)` — Plesken-Pohst canonical
-  lattice form (LLL-reduced + qfisom into a canonical basis).
-- Cell-enumeration driver lives in this repo under
-  `src/voronoi/enumerate/`.
+- Distinguish $N$, $r$, and $s$ in data and proofs.
+- Capped enumeration must report incomplete coverage unless exhaustion is proved.
+- Work limits and timeouts never become mathematical negatives.
+- Fingerprints partition candidates; exact witnesses establish equivalence.
+- Every accepted realization or negative needs replayable exact evidence.
+- Relative completeness is always relative to named input catalogs.
+- Global completeness requires every incidence, completion subproblem, and shard
+  to have terminal coverage, together with a proof that the inputs are exhaustive.
 
-Graduation: independently reproduce the (N=8, n=12) count of 50645
-orbits starting from (N=8, n=11) + a Voronoi seed. Only then start
-(N=9, n=12).
-
-### Layer C — Homology of extended complexes
-
-Goal: for each newly enumerated (N, n), decide H_12 contribution.
-
-Two paths per cell orbit:
-
-1. **Orientation collapses.** If χ_σ hits −1 for every σ at dim n,
-   contribution is 0 mod S_2. (Paper's N=8 argument.) Cheap.
-2. **Orientation survives.** Build ∂_{n+1} and ∂_n, feed to
-   smooth_snf prime sweep. Since we don't know a priori where
-   torsion lives, sweep primes up to a Borel-style bound (for
-   GL_N(Z), torsion is only at primes p with an element of order
-   p in GL_N(Z), equivalently p ≤ some function of N; for N ≤ 12
-   this is p ≤ 13 or so). Output: H_12 = Z^b ⊕ torsion structure.
-
-## What graduates to noether
-
-As we hit primitives that are general-purpose, they land in noether
-rather than the voronoi repo:
-
-| Primitive | Noether home | Status |
-|---|---|---|
-| `qfauto` via libpari FFI | `engine.pari.qfauto` + `api.lattice.automorphism` | new |
-| `qfisom` via libpari FFI | `engine.pari.qfisom` + `api.lattice.isometry` | new |
-| `qflll` via libpari FFI | `engine.pari.qflll` + `api.lattice.lll` | new |
-| `qfminim` via libpari FFI | `engine.pari.qfminim` + `api.lattice.short_vectors` | new |
-| Exact LP primitive | `api.convex.lp` | new |
-| Canonical lattice form | `api.lattice.canonical_form` | new |
-| LatticeZ^N scitype | `scitype.math.la.lattice` | extend existing |
-| Chain-complex scitype | `scitype.math.at.chain` (generalized) | extend existing |
-| Sparse Z-homology pipeline | `api.smooth_snf` | shipped |
-
-## Open questions
-
-1. **Gram matrix for Stab(σ).** For a cell σ with min-vector matrix
-   M, naive ``G = M^T M`` does NOT have {±rows of M} as its shortest
-   vectors, and ``Aut(G) ∩ SetStab(± M)`` is strictly smaller than
-   the true Stab(σ) for lower-dim cells (empirically: some cells at
-   (N=8, n=8) collapse to |Stab| = 2 = {±I} when they clearly have
-   more symmetry from inspection). The actual perfect form ``Q_σ``
-   for the cell's interior is what we need. Reconstructing Q_σ from
-   M is an n(n+1)/2 − N(N+1)/2 underdetermined linear system in
-   general; Plesken-Pohst's classical recipe uses a specific
-   parameterization we haven't implemented yet. [DSEKM19] §2 sidesteps
-   this for low-perfection cells via Watson index theory rather than
-   running qfauto on M^T M. **Blocking Layer A orientation tally.**
-2. Performance of `qfauto` on the 50645-orbit N=8 n=12 corpus — is
-   PARI fast enough, or do we need a native Plesken-Pohst port?
-3. Does the orientation-reversing argument extend to (N=9, n=12)?
-   Unknown; tallied cell-by-cell once Layer B lands.
-4. Start of the Voronoi seed for (N=9, n=12): which perfect forms
-   are the natural starting points? (E_8, D_9 relatives, etc.)
-5. Enumeration hardness scaling from (N=8, n=12) [50k orbits] to
-   (N=9, n=12) [likely 10^5–10^6]. May need distributed.
-6. **PARI uncatchable crash in `qfminim` blocks `lp_extend` at
-   scale.** The Sylvester PD check in
-   `noether.api.lattice.is_positive_definite` is exact and equivalent
-   to `qfgaussred_positive`, but `qfminim0`'s pre-LLL via
-   `lllgramint` rejects ill-conditioned-but-PD integer Grams when
-   the LLL'd basis comes back with fewer columns. The longjmp inside
-   `pari_err_DOMAIN` takes the process down because
-   `noether_engine::session` does not register a recovery callback.
-   Fix needs either (a) Rust-side `cb_pari_err_recover` + `setjmp`
-   landing pad in `engine/noether_engine/src/session.rs`, or
-   (b) subprocess-isolating `qfminim` calls. Empirically refined
-   2026-05-23: subprocess isolation per-cell lets cells 0-7 complete
-   at `factor=2` (recovering 28/106 of the n=9 layer); cells 8-12
-   still crash/timeout inside qfminim. Bumping `factor` to 8
-   triggers segfaults on every cell — so the gap of ~71 reachable
-   but norm-bound-blocked cells (median ratio 4.0, max 72.0) cannot
-   be closed without (a)/(b) or a third option (c) LLL pre-reduction
-   of `A_int` via FLINT before `qfminim`. The earlier diagnosis
-   "lp_extend has a polyhedral-incompleteness bug" was empirically
-   refuted — see `enumerate/lp_extend.py` docstring for the trace
-   pipeline and full decomposition.
-
-Resolved 2026-04-25 (see git history for prior text):
-
-- **OQ6 — Orientation character convention.** χ_σ(g) = sign(π) where
-  π is the unsigned permutation of min-vector pairs induced by g; no
-  ε_j sign factor. Confirmed against [DSEKM19] §1.2.1 and [EVGS13]
-  §3.1, both of which define orientation as an orientation of
-  R(σ) = span{v̂ : v ∈ m(σ)} ⊂ Sym²(R^N) with v̂ = v vᵀ sign-blind.
-  Implemented in `orientation.py`.
-
-## References
-
-- Dutour Sikirić, Elbaz-Vincent, Kupers, Martinet. "Voronoi
-  complexes in higher dimensions, cohomology of GL_N(Z) for N ≥ 8
-  and the triviality of K_8(Z)." arXiv:1910.11598.
-- Elbaz-Vincent, Gangl, Soulé. "Perfect forms, K-theory and the
-  cohomology of modular groups." Adv. Math. 245 (2013).
-  arXiv:1001.0789.
-- Dutour Sikirić, Schürmann, Vallentin. "Classification of eight-
-  dimensional perfect forms." ERA-AMS 13 (2007). arXiv:math/0609388.
-- Public orbit database:
-  https://github.com/elbazvip/Voronoi-complexes-database
-- Older Elbaz-Vincent/Gangl/Soulé database (N < 8):
-  https://pev.perso.math.cnrs.fr/Voronoi/Voronoi_complexes_database/
+Per-cell records retain canonical lines, an exact Gram witness and minimum
+shell, equivalence transports, stabilizers, parent incidences, and orientation
+evidence. Run records retain immutable input hashes, software versions,
+explicit seeds where relevant, shard parameters, terminal counts, and output
+hashes. See [the computation guide](docs/computations.md) for the implemented
+artifact boundaries and [CONTRIBUTING.md](CONTRIBUTING.md) for ownership.

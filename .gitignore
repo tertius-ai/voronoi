@@ -9,6 +9,8 @@ __pycache__/
 .tox/
 build/
 dist/
+target/
+/artifacts/
 
 # raw published databases — fetch via scripts/fetch_database.sh
 data/

@@ -1,0 +1,78 @@
+{
+  "type": "voronoi/noether-migration-validation@1",
+  "date": "2026-10-27",
+  "noether_version": "0.3.2",
+  "noether_repository": "https://github.com/tertius-ai/noether",
+  "noether_checkout": "../noether",
+  "noether_checkout_revision": "4c92c269c59da02a4d32c833c2ee093407f8e22f",
+  "python_version": "3.12.3",
+  "rust_version": "1.94.0",
+  "census_engine_sha256": "85041bc783e355156dbb7b613a0dd6780a929b1b1b4a7f38e189c9647a97786a",
+  "checks": [
+    {
+      "command": "make sync",
+      "result": "passed"
+    },
+    {
+      "command": "make doctor",
+      "result": "passed"
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "uv pip check",
+      "result": "passed"
+    },
+    {
+      "command": "make test-rust",
+      "result": "passed",
+      "tests": 6
+    },
+    {
+      "command": "make test-corpus",
+      "result": "passed",
+      "tests": 61,
+      "skipped": 0
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_census.py::test_completion_timeout_kills_solver_descendants tests/test_runtime.py",
+      "result": "passed",
+      "tests": 11,
+      "note": "Includes the version-probe timeout parameter added after the corpus run collected its tests."
+    }
+  ],
+  "distinct_python_tests_validated": 62,
+  "coverage": [
+    "All published corpus files parse with the expected dimensions and counts",
+    "Watson reconstruction, exact orbit equivalence, realization and orientation regressions",
+    "Full published N=8 codimension-one incidence regression",
+    "Bounded worker tasks, artifact tampering, transactional resume and retry policies",
+    "Native completion of three historical large-coefficient tail regressions",
+    "64-shard controller over a small generated census with frozen runtime verification",
+    "Stale Python and Rust releases rejected; timeouts kill worker descendants"
+  ],
+  "historical_artifacts_modified": false,
+  "mathematical_artifact_schemas_changed": false,
+  "production_census_started": false,
+  "scope": "Application migration and bounded regressions; no full 0.3.2 rerun of the historical 924637-representative census.",
+  "public_source_identity": {
+    "tag": "v0.3.2",
+    "tracked_files_compared": 1115,
+    "local_files_and_modes_match_public_tag": true,
+    "note": "Tracked file content and executable modes match the public v0.3.2 source, despite different commit identities."
+  },
+  "collaborator_preparation": {
+    "date": "2026-10-27",
+    "full_corpus_python_tests_passed": 65,
+    "additional_watson_coverage_guard_tests_passed": 2,
+    "distinct_python_tests_validated": 67,
+    "reference_files_verified": 11,
+    "reference_revision": "d4c7b40ad2c95850d16160b347953dbaa9241486",
+    "source_archive_checked": true,
+    "generated_outputs_in_source_archive": false,
+    "historical_artifacts_preserved": true,
+    "note": "The full corpus run collected before the two new unsupported-rank guard tests were added; those passed in a focused run."
+  }
+}

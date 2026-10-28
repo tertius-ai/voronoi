@@ -1,9 +1,8 @@
 """Watson enumeration vs the published orbit database.
 
 Each test enumerates cells of a given index from scratch (not from the
-database), then matches each enumerated cell against the database via
-qfisom on centroid Gram forms — the same orbit invariant used in
-``test_orbit_dedupe_published.py``.
+database), then matches each enumerated cell against the database using
+Noether's exact integral-line equivalence witnesses.
 """
 
 from __future__ import annotations
@@ -11,11 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-try:
-    from noether.api.lattice import isometry
-except ImportError:
-    pytest.skip("noether not available", allow_module_level=True)
 
 from voronoi.cells import VoronoiCell
 from voronoi.enumerate import (
@@ -29,6 +23,8 @@ from voronoi.enumerate import (
 )
 from voronoi.parse import parse_list_shv_file
 
+pytestmark = pytest.mark.corpus
+
 _DATA = (
     Path(__file__).parent.parent
     / "data"
@@ -37,20 +33,13 @@ _DATA = (
 )
 
 
-def _gram_centroid(cell: VoronoiCell) -> list[list[int]]:
-    n = cell.lattice_rank
-    g = [[0] * n for _ in range(n)]
-    for v in cell.min_vectors:
-        for i in range(n):
-            for j in range(n):
-                g[i][j] += v[i] * v[j]
-    return g
-
-
 def _cells_match(a: VoronoiCell, b: VoronoiCell) -> bool:
-    """Two cells are GL_n(Z)-equivalent iff their centroid Gram forms
-    are GL-isometric."""
-    return isometry(_gram_centroid(a), _gram_centroid(b)) is not None
+    """Return an exact ``GL_n(Z)`` equivalence verdict."""
+    equivalence = a.configuration.equivalence_to(b.configuration)
+    if equivalence is None:
+        return False
+    equivalence.verify()
+    return True
 
 
 def test_index_1_n8_matches_database_cell_0() -> None:
@@ -193,8 +182,7 @@ def test_index_1_2_3_together_cover_7_distinct_db_cells() -> None:
 
 @pytest.mark.slow
 def test_index_4_cyclic_n8_count() -> None:
-    """4 cells: enumerated from 16 Z/4Z compositions then filtered via
-    is_realizable_min_vector_set + qfisom dedupe."""
+    """Four cells after certified realization and exact orbit dedupe."""
     cells = enumerate_index_4_cyclic_cells(8)
     assert len(cells) == 4
 
@@ -315,7 +303,7 @@ def test_full_enumeration_recovers_all_13_db_cells() -> None:
     """The full Watson enumeration via enumerate_all_n_eq_N_cells(8)
     must reproduce all 13 (N=8, n=8) cells from the published database.
 
-    THIS IS THE FULL M3 GRADUATION CRITERION."""
+    """
     all_enumerated = enumerate_all_n_eq_N_cells(8)
     assert len(all_enumerated) == 13, (
         f"Watson enumeration produced {len(all_enumerated)} cells; "
