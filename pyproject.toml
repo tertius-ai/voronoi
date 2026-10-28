@@ -7,6 +7,8 @@ name = "voronoi"
 version = "0.0.1"
 description = "Computational attack on K_12(Z) via Voronoi complexes of GL_N(Z)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "tertius-noether==0.3.2",

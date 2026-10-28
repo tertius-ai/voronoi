@@ -99,3 +99,10 @@ Noether owns reusable exact mathematics. Voronoi owns the research-specific
 census, its evidence, and its coverage accounting. The radius-based extension
 experiment remains available in `voronoi.enumerate.lp_extend` for diagnosis;
 it does not establish exhaustive census coverage.
+
+## License
+
+Code and documentation are licensed under the [MIT License](LICENSE).
+Copyright (c) 2026 Benjamin Antieau, Deven Manam, and contributors.
+
+The separately fetched reference database retains its upstream GPLv3 license.
